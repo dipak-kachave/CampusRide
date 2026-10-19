@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
@@ -62,9 +62,18 @@ const userSchema = new mongoose.Schema(
     },
     verificationMethod: {
       type: String,
-      enum: ["institutional_email", "college_prn", "admin_approved", "pending"],
+      enum: ["institutional_email", "college_prn", "id_card_scan", "admin_approved", "pending"],
       default: "pending",
     },
+    idCardImage: {
+      type: String,
+      default: "",
+    },
+    idCardVerified: {
+      type: Boolean,
+      default: false,
+    },
+
     rating: {
       type: Number,
       default: 5.0,

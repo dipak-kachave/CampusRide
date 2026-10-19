@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ShieldCheck, Mail, Lock, User, Phone, BookOpen, AlertCircle, ArrowRight, CheckCircle2, IdCard } from "lucide-react";
+import { ShieldCheck, Mail, Lock, User, Phone, BookOpen, AlertCircle, ArrowRight, CheckCircle2, IdCard, Sparkles } from "lucide-react";
+import IdCardScanner from "../components/IdCardScanner";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -14,6 +15,7 @@ export default function Register() {
     department: "Computer Engineering",
     year: "2nd Year",
   });
+  const [idCardData, setIdCardData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -21,6 +23,20 @@ export default function Register() {
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleIdCardScan = (scanResult) => {
+    if (scanResult) {
+      setIdCardData(scanResult);
+      if (scanResult.prn) {
+        setFormData((prev) => ({ ...prev, prn: scanResult.prn }));
+      }
+      if (scanResult.department) {
+        setFormData((prev) => ({ ...prev, department: scanResult.department }));
+      }
+    } else {
+      setIdCardData(null);
+    }
   };
 
   const isRcpitEmail = formData.email.trim().toLowerCase().endsWith("@rcpit.ac.in");
@@ -40,15 +56,20 @@ export default function Register() {
       return;
     }
 
-    // If personal email, encourage PRN proof
-    if (!cleanEmail.endsWith("@rcpit.ac.in") && (!formData.prn || formData.prn.trim().length < 4)) {
-      setError("Since you are using a personal email (like Gmail), please enter your College PRN / Roll Number as proof of being an RCPIT member.");
+    // If personal email, encourage PRN or ID card proof
+    if (!cleanEmail.endsWith("@rcpit.ac.in") && (!formData.prn || formData.prn.trim().length < 4) && !idCardData) {
+      setError("Since you are using a personal email (like Gmail), please scan your College ID Card or enter your PRN / Roll Number as proof of being an RCPIT member.");
       return;
     }
 
     setLoading(true);
     try {
-      await register({ ...formData, email: cleanEmail });
+      await register({
+        ...formData,
+        email: cleanEmail,
+        idCardImage: idCardData?.imageData || "",
+        idCardVerified: !!idCardData?.collegeVerified || !!idCardData?.prn,
+      });
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -66,7 +87,7 @@ export default function Register() {
             RCPIT Member Registration
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Create Account</h1>
-          <p className="text-xs text-slate-500">Register with your college email OR personal email with PRN proof</p>
+          <p className="text-xs text-slate-500">Register with your college email OR personal email with ID card / PRN proof</p>
         </div>
 
         {error && (
@@ -139,10 +160,17 @@ export default function Register() {
               </p>
             ) : (
               <p className="text-[11px] text-slate-400 mt-1">
-                Personal emails allowed! Provide your College PRN below as proof of enrollment.
+                Personal emails allowed! Upload/scan your College ID Card below to auto-verify your profile.
               </p>
             )}
           </div>
+
+          {/* ID Card Camera / Upload Scanner */}
+          <IdCardScanner
+            onScanComplete={handleIdCardScan}
+            currentPrn={formData.prn}
+            onPrnChange={(newPrn) => setFormData((prev) => ({ ...prev, prn: newPrn }))}
+          />
 
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -155,7 +183,7 @@ export default function Register() {
               <input
                 type="text"
                 name="prn"
-                placeholder="e.g. 22101001 or Roll No"
+                placeholder="Auto-filled from ID card scan or enter manually"
                 value={formData.prn}
                 onChange={handleChange}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
@@ -163,6 +191,7 @@ export default function Register() {
             </div>
             <p className="text-[11px] text-slate-400 mt-1">Proof that you are an active student/staff member at RCPIT</p>
           </div>
+
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

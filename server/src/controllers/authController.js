@@ -1,4 +1,4 @@
-﻿const User = require("../models/User");
+const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 
 // Generate JWT token
@@ -15,7 +15,7 @@ const generateToken = (id) => {
 // @access  Public
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, phone, prn, department, year, role } = req.body;
+    const { name, email, password, phone, prn, department, year, role, idCardImage, idCardVerified } = req.body;
 
     if (!name || !email || !password || !phone) {
       return res.status(400).json({
@@ -36,14 +36,19 @@ const registerUser = async (req, res) => {
     }
 
     // Determine verification proof:
-    // 1. If institutional email (@rcpit.ac.in) -> Automatic verification
-    // 2. If personal email (e.g. Gmail) -> Verified via College PRN / Roll number proof
+    // 1. If scanned ID card verified -> id_card_scan
+    // 2. If institutional email (@rcpit.ac.in) -> Automatic verification
+    // 3. If personal email (e.g. Gmail) -> Verified via College PRN / Roll number proof or uploaded ID Card
     const isRcpitEmail = cleanEmail.endsWith("@rcpit.ac.in");
     let isVerified = false;
     let verificationBadge = false;
     let verificationMethod = "pending";
 
-    if (isRcpitEmail) {
+    if (idCardVerified || (idCardImage && prn && prn.trim().length >= 4)) {
+      isVerified = true;
+      verificationBadge = true;
+      verificationMethod = "id_card_scan";
+    } else if (isRcpitEmail) {
       isVerified = true;
       verificationBadge = true;
       verificationMethod = "institutional_email";
@@ -72,12 +77,16 @@ const registerUser = async (req, res) => {
       isVerified,
       verificationBadge,
       verificationMethod,
+      idCardImage: idCardImage || "",
+      idCardVerified: !!idCardVerified,
     });
 
     res.status(201).json({
       success: true,
       message: isVerified
-        ? "Registration successful! Your RCPIT profile is verified."
+        ? (verificationMethod === "id_card_scan"
+            ? "Registration successful! Your College ID Card has been scanned & verified."
+            : "Registration successful! Your RCPIT profile is verified.")
         : "Registration successful! Please submit your College PRN or ID card to complete verification.",
       token: generateToken(user._id),
       user: {
@@ -92,6 +101,8 @@ const registerUser = async (req, res) => {
         isVerified: user.isVerified,
         verificationBadge: user.verificationBadge,
         verificationMethod: user.verificationMethod,
+        idCardImage: user.idCardImage,
+        idCardVerified: user.idCardVerified,
         rating: user.rating,
       },
     });
@@ -155,6 +166,8 @@ const loginUser = async (req, res) => {
         isVerified: user.isVerified,
         verificationBadge: user.verificationBadge,
         verificationMethod: user.verificationMethod,
+        idCardImage: user.idCardImage,
+        idCardVerified: user.idCardVerified,
         rating: user.rating,
       },
     });

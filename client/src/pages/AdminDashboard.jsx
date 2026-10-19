@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, Users, Bike, Car, AlertTriangle, Bus, CheckCircle2, XCircle, Search, RefreshCw } from "lucide-react";
+import { ShieldCheck, Users, Bike, Car, AlertTriangle, Bus, CheckCircle2, XCircle, Search, RefreshCw, Eye, Camera, IdCard, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -13,6 +13,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [searchUser, setSearchUser] = useState("");
+  const [selectedIdPhoto, setSelectedIdPhoto] = useState(null);
+
 
   const fetchData = async () => {
     setLoading(true);
@@ -123,7 +125,7 @@ export default function AdminDashboard() {
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 rounded-3xl p-6 sm:p-8 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-cyan-300 text-xs font-semibold border border-blue-400/30">
-            <ShieldCheck className="w-3.5 h-3.5" /> Dipak Patil • Super Admin Authority Console
+            <ShieldCheck className="w-3.5 h-3.5" /> Dipak Kachave • Super Admin Authority Console
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">CampusRide Admin Portal</h1>
           <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
@@ -369,7 +371,7 @@ export default function AdminDashboard() {
                   <th className="p-3">User Details</th>
                   <th className="p-3">Contact & Phone</th>
                   <th className="p-3">Department & Year</th>
-                  <th className="p-3">College PRN</th>
+                  <th className="p-3">College PRN & ID Proof</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Moderation</th>
                 </tr>
@@ -393,8 +395,21 @@ export default function AdminDashboard() {
                       <div>{u.department}</div>
                       <span className="text-[10px] text-slate-400">{u.year}</span>
                     </td>
-                    <td className="p-3 font-mono font-bold text-slate-800">
-                      {u.prn || "N/A"}
+                    <td className="p-3">
+                      <div className="font-mono font-bold text-slate-800">{u.prn || "N/A"}</div>
+                      {u.idCardImage ? (
+                        <button
+                          onClick={() => setSelectedIdPhoto(u)}
+                          className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition cursor-pointer"
+                        >
+                          <Camera className="w-3 h-3 text-blue-600" />
+                          <span>View ID Card</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          {u.verificationMethod === "institutional_email" ? "Official Email" : "Manual PRN"}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3">
                       <span
@@ -430,6 +445,85 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* ID Card Inspection Modal */}
+      {selectedIdPhoto && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 relative">
+            <div className="flex justify-between items-start border-b pb-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[11px] font-bold border border-blue-200 mb-1">
+                  <IdCard className="w-3.5 h-3.5 text-blue-600" />
+                  RCPIT ID Card Verification
+                </div>
+                <h3 className="text-base font-bold text-slate-900">{selectedIdPhoto.name}</h3>
+                <p className="text-xs text-slate-500">{selectedIdPhoto.department} • {selectedIdPhoto.year}</p>
+              </div>
+              <button
+                onClick={() => setSelectedIdPhoto(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Entered / Scanned PRN</span>
+                  <span className="font-mono font-extrabold text-blue-700 text-sm">{selectedIdPhoto.prn || "N/A"}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Contact</span>
+                  <span className="text-slate-700 font-medium">{selectedIdPhoto.phone}</span>
+                </div>
+              </div>
+
+              {/* The Captured ID Card Photograph */}
+              <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center max-h-[55vh]">
+                <img
+                  src={selectedIdPhoto.idCardImage}
+                  alt={`ID Card of ${selectedIdPhoto.name}`}
+                  className="w-full h-full object-contain max-h-[55vh]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                selectedIdPhoto.isVerified
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border border-amber-200"
+              }`}>
+                {selectedIdPhoto.isVerified ? "Currently Verified" : "Pending Verification"}
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedIdPhoto(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={async () => {
+                    await handleToggleUserVerify(selectedIdPhoto._id);
+                    setSelectedIdPhoto((prev) => prev ? ({ ...prev, isVerified: !prev.isVerified }) : null);
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                    selectedIdPhoto.isVerified
+                      ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                      : "bg-emerald-600 text-white hover:bg-emerald-700"
+                  }`}
+                >
+                  {selectedIdPhoto.isVerified ? "Revoke Verification" : "Approve & Verify Account"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* TAB 3: SAFETY REPORTS */}
       {activeTab === "reports" && (
