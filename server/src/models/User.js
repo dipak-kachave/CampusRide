@@ -132,7 +132,6 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-userSchema.index({ email: 1 });
 userSchema.index({ verificationStatus: 1 });
 userSchema.index({ ratingAvg: 1, ratingCount: 1 });
 userSchema.index({ cancellationCount: 1 });
