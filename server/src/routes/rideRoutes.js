@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const router = express.Router();
 const {
   getAllRides,
@@ -6,6 +6,7 @@ const {
   createRide,
   requestSeat,
   respondPassenger,
+  cancelRequest,
   updateRideStatus,
   getMyPublishedRides,
   getMyJoinedRides,
@@ -19,6 +20,7 @@ router.get("/:id", getRideById);
 router.post("/", protect, createRide);
 router.post("/:id/request", protect, requestSeat);
 router.put("/:id/respond-passenger", protect, respondPassenger);
+router.put("/:id/cancel-request", protect, cancelRequest);
 router.put("/:id/status", protect, updateRideStatus);
 
 module.exports = router;

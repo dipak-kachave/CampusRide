@@ -1,17 +1,24 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { X, AlertTriangle, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-export default function ReportModal({ isOpen, onClose }) {
+export default function ReportModal({ isOpen, onClose, reportedUser, ride }) {
   const { token } = useAuth();
-  const [formData, setFormData] = useState({
-    targetType: "General / Safety",
-    subject: "",
-    description: "",
-  });
+  const [reason, setReason] = useState("Inappropriate Behavior");
+  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+
+  const reasons = [
+    "Inappropriate Behavior",
+    "Unsafe Driving",
+    "No Show",
+    "Overcharging / Payment Demand",
+    "Harassment",
+    "Fake Information",
+    "Other",
+  ];
 
   if (!isOpen) return null;
 
@@ -26,13 +33,20 @@ export default function ReportModal({ isOpen, onClose }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          reportedUser: reportedUser?._id || reportedUser?.id || reportedUser || null,
+          ride: ride?._id || ride || null,
+          reason,
+          description,
+          subject: `${reason} Safety Incident`,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        setMsg("Report submitted to RCPIT admin. We will review it shortly.");
+        setMsg("Report submitted to RCPIT admin. We will investigate promptly.");
         setTimeout(() => {
           setMsg("");
+          setDescription("");
           onClose();
         }, 2000);
       } else {
@@ -51,9 +65,11 @@ export default function ReportModal({ isOpen, onClose }) {
         <div className="flex justify-between items-center border-b pb-3">
           <div className="flex items-center gap-2 text-rose-600 font-bold text-base">
             <AlertTriangle className="w-5 h-5" />
-            <span>Safety Report & Feedback</span>
+            <span>Safety Report & Conduct Flag</span>
           </div>
-          <button onClick={onClose}><X className="w-5 h-5" /></button>
+          <button onClick={onClose}>
+            <X className="w-5 h-5 text-slate-400 hover:text-slate-600" />
+          </button>
         </div>
 
         {msg && (
@@ -63,58 +79,52 @@ export default function ReportModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {error && (
-          <div className="p-3 bg-rose-50 text-rose-800 rounded-xl text-xs">
-            {error}
-          </div>
-        )}
+        {error && <div className="p-3 bg-rose-50 text-rose-800 rounded-xl text-xs">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
           <div>
-            <label className="font-semibold block mb-1">Category</label>
+            <label className="font-semibold block mb-1">Incident Category / Reason</label>
             <select
-              value={formData.targetType}
-              onChange={(e) => setFormData({ ...formData, targetType: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border text-sm"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:ring-2 focus:ring-rose-500 outline-none"
             >
-              <option value="General / Safety">General / Safety Complaint</option>
-              <option value="Ride">Ride Sharing Issue</option>
-              <option value="Vehicle">Vehicle Rental Problem</option>
-              <option value="User">Student / Member Behavior</option>
+              {reasons.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="font-semibold block mb-1">Subject</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Driver did not arrive, Lost helmet"
-              value={formData.subject}
-              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="font-semibold block mb-1">Detailed Description</label>
+            <label className="font-semibold block mb-1">Detailed Description of What Happened</label>
             <textarea
-              rows={4}
               required
-              placeholder="Explain the incident or issue with date, time, and details..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border text-sm"
+              rows="4"
+              placeholder="Please provide specific details: time, date, behavior, or safety issue..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
             ></textarea>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow transition disabled:opacity-50"
-          >
-            {loading ? "Submitting..." : "Submit Confidential Report"}
-          </button>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-500/20 transition disabled:opacity-50"
+            >
+              {loading ? "Submitting..." : "Submit Incident Report"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

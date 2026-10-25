@@ -20,13 +20,35 @@ app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 // Routes
+const campusConfig = require("./config/campus");
+const startExpireRidesJob = require("./jobs/expireRidesJob");
+
+app.get("/api/locations", (req, res) => {
+  res.json({
+    success: true,
+    locations: campusConfig.pickupPoints,
+    config: {
+      minPricePerSeat: campusConfig.minPricePerSeat,
+      maxPricePerSeat: campusConfig.maxPricePerSeat,
+      maxSeats: campusConfig.maxSeats,
+      cancellationWindowMinutes: campusConfig.cancellationWindowMinutes,
+      cancellationFlagThreshold: campusConfig.cancellationFlagThreshold,
+    },
+  });
+});
+
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/vehicles", require("./routes/vehicleRoutes"));
 app.use("/api/rentals", require("./routes/rentalRoutes"));
 app.use("/api/rides", require("./routes/rideRoutes"));
 app.use("/api/buses", require("./routes/busRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
+app.use("/api/ratings", require("./routes/ratingRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
+
+// Start background cron jobs
+startExpireRidesJob();
 
 // Health Check
 app.get("/api/health", (req, res) => {

@@ -12,6 +12,7 @@ export default function Register() {
     phone: "",
     prn: "",
     role: "student",
+    gender: "Female",
     department: "Computer Engineering",
     year: "2nd Year",
   });
@@ -193,33 +194,47 @@ export default function Register() {
           </div>
 
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Gender</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+              >
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Department</label>
               <select
                 name="department"
                 value={formData.department}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
               >
-                <option value="Artificial Intelligence and Machine Learning (AI & ML)">Artificial Intelligence and Machine Learning (AI & ML)</option>
-                <option value="Artificial Intelligence and Data Science (AI & DS)">Artificial Intelligence and Data Science (AI & DS)</option>
+                <option value="Artificial Intelligence and Machine Learning (AI & ML)">AI & ML</option>
+                <option value="Artificial Intelligence and Data Science (AI & DS)">AI & DS</option>
                 <option value="Computer Engineering">Computer Engineering</option>
                 <option value="Information Technology">Information Technology</option>
-                <option value="Electronics & Telecommunication (E&TC)">Electronics & Telecommunication (E&TC)</option>
-                <option value="Mechanical Engineering">Mechanical Engineering</option>
-                <option value="Electrical Engineering">Electrical Engineering</option>
-                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Electronics & Telecommunication (E&TC)">E&TC</option>
+                <option value="Mechanical Engineering">Mechanical</option>
+                <option value="Electrical Engineering">Electrical</option>
+                <option value="Civil Engineering">Civil</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Academic Year / Role</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Year / Role</label>
               <select
                 name="year"
                 value={formData.year}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
               >
                 <option value="1st Year">1st Year</option>
                 <option value="2nd Year">2nd Year</option>

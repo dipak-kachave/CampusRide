@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const campusConfig = require("../config/campus");
 
 const passengerSchema = new mongoose.Schema({
   user: {
@@ -14,11 +15,12 @@ const passengerSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Requested", "Accepted", "Rejected"],
+    enum: ["Requested", "Accepted", "Rejected", "Cancelled"],
     default: "Requested",
   },
   pickupPoint: {
     type: String,
+    enum: campusConfig.pickupPoints,
     default: "RCPIT Main Gate",
   },
   createdAt: {
@@ -36,32 +38,32 @@ const rideSchema = new mongoose.Schema(
     },
     from: {
       type: String,
-      required: [true, "Origin point is required (e.g. RCPIT Main Gate)"],
+      required: [true, "Origin pickup point is required"],
+      enum: campusConfig.pickupPoints,
       trim: true,
-      default: "RCPIT Main Gate",
     },
     to: {
       type: String,
-      required: [true, "Destination is required (e.g. Shirpur Bus Stand)"],
+      required: [true, "Destination pickup point is required"],
+      enum: campusConfig.pickupPoints,
       trim: true,
-      default: "Shirpur Bus Stand",
     },
     departureTime: {
-      type: String,
-      required: [true, "Departure time is required (e.g. Today, 05:15 PM)"],
-      trim: true,
+      type: Date,
+      required: [true, "Departure time is required"],
     },
     seatsTotal: {
       type: Number,
       required: true,
       min: 1,
-      max: 6,
+      max: campusConfig.maxSeats,
       default: 2,
     },
     seatsAvailable: {
       type: Number,
       required: true,
       min: 0,
+      max: campusConfig.maxSeats,
       default: 2,
     },
     distanceKm: {
@@ -71,14 +73,15 @@ const rideSchema = new mongoose.Schema(
     },
     ratePerKm: {
       type: Number,
-      default: 12, // Updated to ₹12 per KM as requested
+      default: 12,
       min: 1,
     },
     pricePerSeat: {
       type: Number,
       required: true,
-      default: 20, // Calculated or custom fare
-      min: 0,
+      min: campusConfig.minPricePerSeat,
+      max: campusConfig.maxPricePerSeat,
+      default: 20,
     },
     vehicleInfo: {
       type: String,
@@ -87,10 +90,18 @@ const rideSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Active", "Full", "Completed", "Cancelled"],
+      enum: ["Active", "Full", "Completed", "Cancelled", "Expired"],
       default: "Active",
     },
     passengers: [passengerSchema],
+    womenOnly: {
+      type: Boolean,
+      default: false,
+    },
+    luggageAllowed: {
+      type: Boolean,
+      default: true,
+    },
     notes: {
       type: String,
       default: "Leaving right after college hours. Safe riding guaranteed.",
@@ -100,5 +111,9 @@ const rideSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+rideSchema.index({ departureTime: 1, status: 1 });
+rideSchema.index({ from: 1, to: 1, status: 1 });
+rideSchema.index({ driver: 1, status: 1 });
 
 module.exports = mongoose.model("Ride", rideSchema);

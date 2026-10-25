@@ -1,4 +1,4 @@
-﻿import React, { createContext, useState, useEffect, useContext } from "react";
+import React, { createContext, useState, useEffect, useContext } from "react";
 
 const AuthContext = createContext();
 
@@ -69,6 +69,21 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const refreshUser = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+      }
+    } catch (err) {
+      console.error("Failed to refresh user:", err);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem("campusride_token");
     setToken(null);
@@ -83,6 +98,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
+        refreshUser,
         logout,
         isAuthenticated: !!user,
       }}

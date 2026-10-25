@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Bike, ShieldCheck, User, LogOut, Bus, Car } from "lucide-react";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -52,7 +53,8 @@ export default function Navbar() {
         {/* Right Auth CTA */}
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <NotificationBell />
               <Link
                 to="/dashboard"
                 className="flex items-center gap-2 py-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition"

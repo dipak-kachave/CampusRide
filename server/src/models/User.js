@@ -16,7 +16,6 @@ const userSchema = new mongoose.Schema(
       trim: true,
       validate: {
         validator: function (v) {
-          // Allows standard email format (both @rcpit.ac.in and personal emails like Gmail/Outlook)
           return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
         },
         message: (props) => `${props.value} is not a valid email address.`,
@@ -27,6 +26,11 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: 6,
       select: false,
+    },
+    gender: {
+      type: String,
+      enum: ["Female", "Male", "Other"],
+      default: "Other",
     },
     prn: {
       type: String,
@@ -60,10 +64,23 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    verificationStatus: {
+      type: String,
+      enum: ["unverified", "pending", "verified", "rejected"],
+      default: "unverified",
+    },
     verificationMethod: {
       type: String,
       enum: ["institutional_email", "college_prn", "id_card_scan", "admin_approved", "pending"],
       default: "pending",
+    },
+    idCardPhoto: {
+      type: String,
+      default: "",
+    },
+    rejectionReason: {
+      type: String,
+      default: "",
     },
     idCardImage: {
       type: String,
@@ -73,7 +90,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-
+    ratingAvg: {
+      type: Number,
+      default: 5.0,
+      min: 1,
+      max: 5,
+    },
     rating: {
       type: Number,
       default: 5.0,
@@ -84,14 +106,45 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    ridesCompleted: {
+      type: Number,
+      default: 0,
+    },
+    cancellationCount: {
+      type: Number,
+      default: 0,
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false,
+    },
+    suspendedReason: {
+      type: String,
+      default: "",
+    },
+    warningCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
   }
 );
 
+userSchema.index({ email: 1 });
+userSchema.index({ verificationStatus: 1 });
+userSchema.index({ ratingAvg: 1, ratingCount: 1 });
+userSchema.index({ cancellationCount: 1 });
+
 // Encrypt password using bcrypt before saving
 userSchema.pre("save", async function (next) {
+  if (this.isModified("isVerified")) {
+    this.verificationBadge = this.isVerified;
+    if (this.isVerified && this.verificationStatus !== "verified") {
+      this.verificationStatus = "verified";
+    }
+  }
   if (!this.isModified("password")) {
     return next();
   }

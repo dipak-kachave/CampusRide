@@ -1,36 +1,120 @@
 const Ride = require("../models/Ride");
+const User = require("../models/User");
+const Notification = require("../models/Notification");
+const campusConfig = require("../config/campus");
 
-// @desc    Get all active rides (with search filters)
+// Helper: Sanitize contact reveal based on status and viewer role
+function sanitizeRide(rideDoc, viewerId) {
+  if (!rideDoc) return null;
+  const ride = rideDoc.toObject ? rideDoc.toObject() : JSON.parse(JSON.stringify(rideDoc));
+
+  const vIdStr = viewerId ? (viewerId._id ? viewerId._id.toString() : viewerId.toString()) : null;
+  const driverIdStr = ride.driver?._id ? ride.driver._id.toString() : ride.driver?.toString();
+  const isDriver = vIdStr && driverIdStr === vIdStr;
+
+  let isAcceptedPassenger = false;
+  if (vIdStr && ride.passengers && Array.isArray(ride.passengers)) {
+    isAcceptedPassenger = ride.passengers.some((p) => {
+      const pUserIdStr = p.user?._id ? p.user._id.toString() : p.user?.toString();
+      return pUserIdStr === vIdStr && p.status === "Accepted";
+    });
+  }
+
+  // 1. Driver phone: visible ONLY to driver themselves or an Accepted passenger
+  if (!isDriver && !isAcceptedPassenger) {
+    if (ride.driver && typeof ride.driver === "object") {
+      delete ride.driver.phone;
+    }
+  }
+
+  // 2. Passenger phone: driver sees ONLY if status === "Accepted". Passengers see ONLY their own phone.
+  if (ride.passengers && Array.isArray(ride.passengers)) {
+    ride.passengers = ride.passengers.map((p) => {
+      const pUserIdStr = p.user?._id ? p.user._id.toString() : p.user?.toString();
+      const isSelf = vIdStr && pUserIdStr === vIdStr;
+      const isAcceptedAndDriver = isDriver && p.status === "Accepted";
+
+      if (!isSelf && !isAcceptedAndDriver) {
+        if (p.user && typeof p.user === "object") {
+          delete p.user.phone;
+        }
+        // Non-accepted passengers or third parties do not see private pickupPoint
+        if (!isDriver && !isSelf) {
+          p.pickupPoint = "Campus Pickup";
+        }
+      }
+      return p;
+    });
+  }
+
+  return ride;
+}
+
+// @desc    Get all active rides (with search & trust filters)
 // @route   GET /api/rides
 // @access  Public
 const getAllRides = async (req, res) => {
   try {
-    const { from, to, search } = req.query;
-    let query = { status: { $in: ["Active", "Full"] } };
+    const { from, to, search, maxPrice, date, womenOnly, minRating } = req.query;
+    const now = new Date();
 
-    if (from) {
-      query.from = { $regex: from, $options: "i" };
+    // Rides whose departureTime has passed are hidden
+    let query = {
+      status: { $in: ["Active", "Full"] },
+      departureTime: { $gt: now },
+    };
+
+    if (from && from !== "All") {
+      query.from = from;
     }
-    if (to) {
-      query.to = { $regex: to, $options: "i" };
+    if (to && to !== "All") {
+      query.to = to;
+    }
+    if (maxPrice) {
+      query.pricePerSeat = { $lte: Number(maxPrice) };
+    }
+    if (womenOnly === "true") {
+      query.womenOnly = true;
+    }
+    if (date) {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      query.departureTime = {
+        $gte: startOfDay > now ? startOfDay : now,
+        $lte: endOfDay,
+      };
     }
     if (search) {
       query.$or = [
         { from: { $regex: search, $options: "i" } },
         { to: { $regex: search, $options: "i" } },
         { vehicleInfo: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
       ];
     }
 
     const rides = await Ride.find(query)
-      .populate("driver", "name phone department year rating isVerified verificationBadge")
+      .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
       .populate("passengers.user", "name phone department year isVerified rating")
-      .sort({ createdAt: -1 });
+      .sort({ departureTime: 1 }); // Sort by earliest departure
+
+    // Optional filter by minRating
+    let filteredRides = rides;
+    if (minRating) {
+      filteredRides = rides.filter(
+        (r) => (r.driver?.ratingAvg || r.driver?.rating || 5.0) >= Number(minRating)
+      );
+    }
+
+    const viewerId = req.user?._id;
+    const sanitized = filteredRides.map((r) => sanitizeRide(r, viewerId));
 
     res.json({
       success: true,
-      count: rides.length,
-      rides,
+      count: sanitized.length,
+      rides: sanitized,
     });
   } catch (error) {
     console.error("Get Rides Error:", error);
@@ -44,14 +128,15 @@ const getAllRides = async (req, res) => {
 const getRideById = async (req, res) => {
   try {
     const ride = await Ride.findById(req.params.id)
-      .populate("driver", "name phone department year rating isVerified")
-      .populate("passengers.user", "name phone department year");
+      .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+      .populate("passengers.user", "name phone department year isVerified");
 
     if (!ride) {
       return res.status(404).json({ success: false, message: "Ride not found" });
     }
 
-    res.json({ success: true, ride });
+    const sanitized = sanitizeRide(ride, req.user?._id);
+    res.json({ success: true, ride: sanitized });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -59,50 +144,138 @@ const getRideById = async (req, res) => {
 
 // @desc    Publish a new ride
 // @route   POST /api/rides
-// @access  Private (Driver)
+// @access  Private (Verified Driver)
 const createRide = async (req, res) => {
   try {
-    const { from, to, departureTime, seatsTotal, pricePerSeat, vehicleInfo, notes, distanceKm, ratePerKm } = req.body;
+    const user = req.user;
+
+    // STEP 3: Verification Gating
+    const isUserVerified = user.verificationStatus === "verified" || user.isVerified;
+    if (!isUserVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Only verified RCPIT members can publish rides. Please verify your ID card in your profile first.",
+      });
+    }
+
+    // Safety: check suspension
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: `Your account has been suspended: ${user.suspendedReason || "Safety violation"}. You cannot publish rides.`,
+      });
+    }
+
+    const {
+      from,
+      to,
+      departureTime,
+      seatsTotal,
+      pricePerSeat,
+      vehicleInfo,
+      notes,
+      distanceKm,
+      ratePerKm,
+      womenOnly,
+      luggageAllowed,
+    } = req.body;
 
     if (!from || !to || !departureTime || !vehicleInfo) {
       return res.status(400).json({
         success: false,
-        message: "Please provide origin, destination, departure time and vehicle info",
+        message: "Please provide origin, destination, departure time, and vehicle info",
       });
     }
 
-    const totalSeats = Number(seatsTotal) || 2;
+    // STEP 1: Fixed campus locations validation
+    if (!campusConfig.pickupPoints.includes(from)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid origin. Must be one of: ${campusConfig.pickupPoints.join(", ")}`,
+      });
+    }
+
+    if (!campusConfig.pickupPoints.includes(to)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid destination. Must be one of: ${campusConfig.pickupPoints.join(", ")}`,
+      });
+    }
+
+    if (from === to) {
+      return res.status(400).json({
+        success: false,
+        message: "Origin and destination pickup points cannot be the same.",
+      });
+    }
+
+    // STEP 1: Date departure validation (reject in past)
+    const depDate = new Date(departureTime);
+    if (isNaN(depDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid departure date-time format.",
+      });
+    }
+
+    if (depDate.getTime() <= Date.now()) {
+      return res.status(400).json({
+        success: false,
+        message: "Departure time cannot be in the past. Please choose a future time.",
+      });
+    }
+
+    // STEP 1: Seats validation
+    const totalSeats = Number(seatsTotal);
+    if (!Number.isInteger(totalSeats) || totalSeats < 1 || totalSeats > campusConfig.maxSeats) {
+      return res.status(400).json({
+        success: false,
+        message: `Seats must be an integer between 1 and ${campusConfig.maxSeats}.`,
+      });
+    }
+
+    // STEP 1: Price validation
+    const seatPrice = Number(pricePerSeat);
+    if (
+      isNaN(seatPrice) ||
+      seatPrice < campusConfig.minPricePerSeat ||
+      seatPrice > campusConfig.maxPricePerSeat
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Price per seat must be between ₹${campusConfig.minPricePerSeat} and ₹${campusConfig.maxPricePerSeat}.`,
+      });
+    }
+
     const dist = Number(distanceKm) || 3.2;
     const rate = Number(ratePerKm) || 12;
-    // If pricePerSeat is not explicitly provided, calculate using dist * rate / totalSeats or nominal fair
-    const calculatedPrice = pricePerSeat !== undefined && pricePerSeat !== ""
-      ? Number(pricePerSeat)
-      : Math.max(Math.round((dist * rate) / Math.max(totalSeats, 1)), 15);
 
     const ride = await Ride.create({
-      driver: req.user._id,
+      driver: user._id,
       from,
       to,
-      departureTime,
+      departureTime: depDate,
       seatsTotal: totalSeats,
       seatsAvailable: totalSeats,
       distanceKm: dist,
       ratePerKm: rate,
-      pricePerSeat: calculatedPrice,
+      pricePerSeat: seatPrice,
       vehicleInfo,
+      womenOnly: Boolean(womenOnly),
+      luggageAllowed: luggageAllowed !== undefined ? Boolean(luggageAllowed) : true,
       notes: notes || "Leaving from campus. Safe ride guaranteed.",
       status: "Active",
     });
 
     const populated = await Ride.findById(ride._id).populate(
       "driver",
-      "name phone department year rating isVerified"
+      "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge"
     );
 
     res.status(201).json({
       success: true,
-      message: "Ride published successfully! Other students can now request seats.",
-      ride: populated,
+      message: "Ride published successfully! Verified students can now request empty seats.",
+      ride: sanitizeRide(populated, user._id),
     });
   } catch (error) {
     console.error("Create Ride Error:", error);
@@ -112,9 +285,27 @@ const createRide = async (req, res) => {
 
 // @desc    Passenger requests a seat
 // @route   POST /api/rides/:id/request
-// @access  Private (Passenger)
+// @access  Private (Verified Passenger)
 const requestSeat = async (req, res) => {
   try {
+    const user = req.user;
+
+    // STEP 3: Verification Gating
+    const isUserVerified = user.verificationStatus === "verified" || user.isVerified;
+    if (!isUserVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Only verified RCPIT members can request seats. Please verify your ID card in your profile first.",
+      });
+    }
+
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: `Your account has been suspended: ${user.suspendedReason || "Safety violation"}. You cannot request seats.`,
+      });
+    }
+
     const { seatsBooked, pickupPoint } = req.body;
     const ride = await Ride.findById(req.params.id);
 
@@ -122,52 +313,93 @@ const requestSeat = async (req, res) => {
       return res.status(404).json({ success: false, message: "Ride not found" });
     }
 
-    if (ride.status !== "Active") {
-      return res.status(400).json({
-        success: false,
-        message: "This ride is no longer accepting requests (Full or Completed).",
-      });
-    }
-
-    if (ride.driver.toString() === req.user._id.toString()) {
+    // STEP 2: Block driver requesting own ride
+    if (ride.driver.toString() === user._id.toString()) {
       return res.status(400).json({
         success: false,
         message: "You cannot request a seat on your own published ride.",
       });
     }
 
-    const requestedSeats = Number(seatsBooked) || 1;
-    if (requestedSeats > ride.seatsAvailable) {
+    // STEP 2: Block requesting expired, full or cancelled ride
+    if (ride.status !== "Active") {
       return res.status(400).json({
         success: false,
-        message: `Only ${ride.seatsAvailable} seat(s) available on this ride.`,
+        message: `This ride is not accepting requests (Status: ${ride.status}).`,
       });
     }
 
-    // Check if user already requested
-    const alreadyRequested = ride.passengers.some(
-      (p) => p.user.toString() === req.user._id.toString() && p.status !== "Rejected"
-    );
-    if (alreadyRequested) {
+    if (new Date(ride.departureTime).getTime() <= Date.now()) {
+      ride.status = "Expired";
+      await ride.save();
       return res.status(400).json({
         success: false,
-        message: "You have already requested a seat on this ride.",
+        message: "This ride's departure time has already passed (Expired).",
       });
+    }
+
+    // STEP 5: Women-only ride check
+    if (ride.womenOnly && user.gender !== "Female") {
+      return res.status(403).json({
+        success: false,
+        message: "This ride is reserved for female students/staff only.",
+      });
+    }
+
+    // STEP 2: Block requesting more seats than available
+    const requestedSeats = Number(seatsBooked) || 1;
+    if (requestedSeats < 1 || requestedSeats > ride.seatsAvailable) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot request ${requestedSeats} seat(s). Only ${ride.seatsAvailable} seat(s) available.`,
+      });
+    }
+
+    // STEP 2: Block duplicate active request by same user
+    const hasActiveRequest = ride.passengers.some(
+      (p) =>
+        p.user.toString() === user._id.toString() &&
+        ["Requested", "Accepted"].includes(p.status)
+    );
+    if (hasActiveRequest) {
+      return res.status(400).json({
+        success: false,
+        message: "You already have an active or accepted request on this ride.",
+      });
+    }
+
+    // Validate pickup point from fixed campus points if provided
+    let finalPickup = pickupPoint || ride.from;
+    if (!campusConfig.pickupPoints.includes(finalPickup)) {
+      finalPickup = ride.from;
     }
 
     ride.passengers.push({
-      user: req.user._id,
+      user: user._id,
       seatsBooked: requestedSeats,
-      pickupPoint: pickupPoint || ride.from,
+      pickupPoint: finalPickup,
       status: "Requested",
     });
 
     await ride.save();
 
+    // STEP 5: In-app notification to driver
+    await Notification.create({
+      recipient: ride.driver,
+      title: "New Ride Request",
+      message: `${user.name} requested ${requestedSeats} seat(s) for your trip (${ride.from} ➔ ${ride.to}).`,
+      type: "ride_request",
+      ride: ride._id,
+    });
+
+    const populated = await Ride.findById(ride._id)
+      .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+      .populate("passengers.user", "name phone department year isVerified");
+
     res.status(200).json({
       success: true,
-      message: "Seat request sent to driver! They will accept or decline.",
-      ride,
+      message: "Seat request sent to driver! You will be notified once they respond.",
+      ride: sanitizeRide(populated, user._id),
     });
   } catch (error) {
     console.error("Request Seat Error:", error);
@@ -175,53 +407,174 @@ const requestSeat = async (req, res) => {
   }
 };
 
-// @desc    Driver responds to passenger request (Accept / Reject)
+// @desc    Driver responds to passenger request (Atomic Accept / Reject)
 // @route   PUT /api/rides/:id/respond-passenger
 // @access  Private (Driver Only)
 const respondPassenger = async (req, res) => {
   try {
-    const { passengerId, decision } = req.body; // decision: "accept" | "reject"
-    const ride = await Ride.findById(req.params.id);
+    const { passengerId, decision } = req.body; // "accept" | "reject"
+    const rideId = req.params.id;
 
-    if (!ride) return res.status(404).json({ success: false, message: "Ride not found" });
+    const baseRide = await Ride.findById(rideId);
+    if (!baseRide) return res.status(404).json({ success: false, message: "Ride not found" });
 
-    if (ride.driver.toString() !== req.user._id.toString()) {
+    if (baseRide.driver.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "Not authorized as driver" });
     }
 
-    const passenger = ride.passengers.id(passengerId);
-    if (!passenger) {
+    const passengerTarget = baseRide.passengers.id(passengerId);
+    if (!passengerTarget) {
       return res.status(404).json({ success: false, message: "Passenger request not found" });
     }
 
     if (decision === "accept") {
-      if (ride.seatsAvailable < passenger.seatsBooked) {
-        return res.status(400).json({ success: false, message: "Not enough seats available" });
+      // STEP 2: Atomic conditional update to prevent race conditions & overbooking
+      const updatedRide = await Ride.findOneAndUpdate(
+        {
+          _id: rideId,
+          driver: req.user._id,
+          seatsAvailable: { $gte: passengerTarget.seatsBooked },
+          passengers: {
+            $elemMatch: { _id: passengerId, status: "Requested" },
+          },
+        },
+        {
+          $set: { "passengers.$.status": "Accepted" },
+          $inc: { seatsAvailable: -passengerTarget.seatsBooked },
+        },
+        { new: true }
+      )
+        .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+        .populate("passengers.user", "name phone department year isVerified");
+
+      if (!updatedRide) {
+        return res.status(400).json({
+          success: false,
+          message: "Could not accept request: insufficient seats remaining or request was cancelled.",
+        });
       }
 
-      passenger.status = "Accepted";
-      ride.seatsAvailable -= passenger.seatsBooked;
-
-      if (ride.seatsAvailable === 0) {
-        ride.status = "Full";
+      // If seatsAvailable reaches 0, mark as Full
+      if (updatedRide.seatsAvailable === 0 && updatedRide.status === "Active") {
+        updatedRide.status = "Full";
+        await updatedRide.save();
       }
+
+      // In-app notification to passenger
+      await Notification.create({
+        recipient: passengerTarget.user,
+        title: "Seat Request Accepted! 🎉",
+        message: `${req.user.name} accepted your request for ${updatedRide.from} ➔ ${updatedRide.to}. Driver phone is now visible!`,
+        type: "request_accepted",
+        ride: updatedRide._id,
+      });
+
+      return res.json({
+        success: true,
+        message: "Passenger request accepted!",
+        ride: sanitizeRide(updatedRide, req.user._id),
+      });
     } else {
-      passenger.status = "Rejected";
+      passengerTarget.status = "Rejected";
+      await baseRide.save();
+
+      // In-app notification to passenger
+      await Notification.create({
+        recipient: passengerTarget.user,
+        title: "Seat Request Declined",
+        message: `Your request for the ride (${baseRide.from} ➔ ${baseRide.to}) was declined by the driver.`,
+        type: "request_rejected",
+        ride: baseRide._id,
+      });
+
+      const populated = await Ride.findById(baseRide._id)
+        .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+        .populate("passengers.user", "name phone department year isVerified");
+
+      return res.json({
+        success: true,
+        message: "Passenger request declined.",
+        ride: sanitizeRide(populated, req.user._id),
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Passenger cancels their seat request / booking
+// @route   PUT /api/rides/:id/cancel-request
+// @access  Private (Passenger)
+const cancelRequest = async (req, res) => {
+  try {
+    const ride = await Ride.findById(req.params.id);
+    if (!ride) return res.status(404).json({ success: false, message: "Ride not found" });
+
+    const pIndex = ride.passengers.findIndex(
+      (p) =>
+        p.user.toString() === req.user._id.toString() &&
+        ["Requested", "Accepted"].includes(p.status)
+    );
+
+    if (pIndex === -1) {
+      return res.status(400).json({
+        success: false,
+        message: "No active or accepted seat request found to cancel.",
+      });
+    }
+
+    const passenger = ride.passengers[pIndex];
+    const wasAccepted = passenger.status === "Accepted";
+    const seatsToRestore = passenger.seatsBooked;
+
+    passenger.status = "Cancelled";
+
+    let penaltyApplied = false;
+    if (wasAccepted) {
+      ride.seatsAvailable += seatsToRestore;
+      if (ride.seatsAvailable > 0 && ride.status === "Full") {
+        ride.status = "Active";
+      }
+
+      // Check cancellation window threshold
+      const departureTime = new Date(ride.departureTime).getTime();
+      const now = Date.now();
+      const diffMinutes = (departureTime - now) / (1000 * 60);
+
+      if (diffMinutes >= 0 && diffMinutes <= campusConfig.cancellationWindowMinutes) {
+        await User.findByIdAndUpdate(req.user._id, {
+          $inc: { cancellationCount: 1 },
+        });
+        penaltyApplied = true;
+      }
     }
 
     await ride.save();
 
+    // In-app notification to driver
+    await Notification.create({
+      recipient: ride.driver,
+      title: "Passenger Cancelled Seat",
+      message: `${req.user.name} cancelled their ${wasAccepted ? "accepted" : "pending"} seat (${seatsToRestore} seat(s)) for ${ride.from} ➔ ${ride.to}.${penaltyApplied ? " (Late cancellation flag logged)" : ""}`,
+      type: "request_cancelled",
+      ride: ride._id,
+    });
+
+    const populated = await Ride.findById(ride._id)
+      .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+      .populate("passengers.user", "name phone department year isVerified");
+
     res.json({
       success: true,
-      message: decision === "accept" ? "Passenger request accepted!" : "Passenger request declined.",
-      ride,
+      message: `Your booking has been cancelled.${penaltyApplied ? ` (Cancellation flag logged: cancelled within ${campusConfig.cancellationWindowMinutes} mins of departure)` : ""}`,
+      ride: sanitizeRide(populated, req.user._id),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Update ride status (Complete or Cancel)
+// @desc    Update ride status (Complete or Cancel by Driver)
 // @route   PUT /api/rides/:id/status
 // @access  Private (Driver Only)
 const updateRideStatus = async (req, res) => {
@@ -235,13 +588,56 @@ const updateRideStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized as driver" });
     }
 
+    if (!["Completed", "Cancelled"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be Completed or Cancelled" });
+    }
+
     ride.status = status;
     await ride.save();
+
+    // If ride is Completed:
+    if (status === "Completed") {
+      // Increment ridesCompleted for driver
+      await User.findByIdAndUpdate(ride.driver, { $inc: { ridesCompleted: 1 } });
+
+      // Increment ridesCompleted for each Accepted passenger
+      const acceptedPassengers = ride.passengers.filter((p) => p.status === "Accepted");
+      for (const p of acceptedPassengers) {
+        await User.findByIdAndUpdate(p.user, { $inc: { ridesCompleted: 1 } });
+        // Notify passenger to rate
+        await Notification.create({
+          recipient: p.user,
+          title: "Ride Completed! Rate Your Commute",
+          message: `Your ride from ${ride.from} to ${ride.to} is marked complete. Please share feedback and rate your driver!`,
+          type: "general",
+          ride: ride._id,
+        });
+      }
+    }
+
+    // If ride is Cancelled by driver:
+    if (status === "Cancelled") {
+      for (const p of ride.passengers) {
+        if (["Accepted", "Requested"].includes(p.status)) {
+          await Notification.create({
+            recipient: p.user,
+            title: "Ride Cancelled by Driver ⚠️",
+            message: `The ride from ${ride.from} to ${ride.to} has been cancelled by driver ${req.user.name}.`,
+            type: "ride_cancelled",
+            ride: ride._id,
+          });
+        }
+      }
+    }
+
+    const populated = await Ride.findById(ride._id)
+      .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+      .populate("passengers.user", "name phone department year isVerified");
 
     res.json({
       success: true,
       message: `Ride marked as ${status}`,
-      ride,
+      ride: sanitizeRide(populated, req.user._id),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -254,10 +650,11 @@ const updateRideStatus = async (req, res) => {
 const getMyPublishedRides = async (req, res) => {
   try {
     const rides = await Ride.find({ driver: req.user._id })
-      .populate("passengers.user", "name phone department year prn rating isVerified")
-      .sort({ createdAt: -1 });
+      .populate("passengers.user", "name phone department year prn rating isVerified verificationBadge")
+      .sort({ departureTime: -1 });
 
-    res.json({ success: true, count: rides.length, rides });
+    const sanitized = rides.map((r) => sanitizeRide(r, req.user._id));
+    res.json({ success: true, count: sanitized.length, rides: sanitized });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -269,10 +666,11 @@ const getMyPublishedRides = async (req, res) => {
 const getMyJoinedRides = async (req, res) => {
   try {
     const rides = await Ride.find({ "passengers.user": req.user._id })
-      .populate("driver", "name phone department year rating isVerified")
-      .sort({ createdAt: -1 });
+      .populate("driver", "name phone department year rating ratingAvg ratingCount ridesCompleted isVerified verificationBadge")
+      .sort({ departureTime: -1 });
 
-    res.json({ success: true, count: rides.length, rides });
+    const sanitized = rides.map((r) => sanitizeRide(r, req.user._id));
+    res.json({ success: true, count: sanitized.length, rides: sanitized });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -284,6 +682,7 @@ module.exports = {
   createRide,
   requestSeat,
   respondPassenger,
+  cancelRequest,
   updateRideStatus,
   getMyPublishedRides,
   getMyJoinedRides,

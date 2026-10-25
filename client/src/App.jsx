@@ -11,6 +11,7 @@ import BusDashboard from "./pages/BusDashboard";
 import Rides from "./pages/Rides";
 import Rentals from "./pages/Rentals";
 import AdminDashboard from "./pages/AdminDashboard";
+import Profile from "./pages/Profile";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/bus-stand" element={<BusDashboard />} />
               <Route path="/rides" element={<Rides />} />
+              <Route path="/profile/:id" element={<Profile />} />
               <Route path="/rentals" element={<Rentals />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="*" element={<Navigate to="/" replace />} />
