@@ -77,19 +77,19 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Right Hero Image (Matching BlaBlaCar photo 1) */}
+          {/* Right Hero Image: Students on Campus */}
           <div className="lg:col-span-6">
             <div className="relative rounded-3xl overflow-hidden shadow-2xl h-[280px] sm:h-[380px] bg-slate-100 border border-slate-100">
               <img
-                src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1200&q=80"
-                alt="Friends carpooling together in car"
+                src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=80"
+                alt="RCPIT Students together on campus"
                 className="w-full h-full object-cover object-center transform hover:scale-102 transition duration-700"
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80";
+                  e.target.src = "https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=1200&q=80";
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent"></div>
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white text-xs font-semibold drop-shadow">
                 <span className="flex items-center gap-1.5 bg-black/40 backdrop-blur px-3 py-1.5 rounded-full">
                   <ShieldCheck className="w-4 h-4 text-[#00AFF5]" /> Verified RCPIT Campus Ride Network

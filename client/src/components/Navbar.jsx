@@ -56,7 +56,7 @@ export default function Navbar() {
             <div className="flex flex-col">
               <div className="flex items-center">
                 <span className="font-black text-2xl tracking-tight text-slate-900 font-sans">
-                  BlaBla<span className="text-[#00AFF5]">Car</span>
+                  Campus<span className="text-[#00AFF5]">Ride</span>
                 </span>
                 <span className="ml-1.5 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-sky-50 text-[#00AFF5] border border-sky-100">
                   RCPIT

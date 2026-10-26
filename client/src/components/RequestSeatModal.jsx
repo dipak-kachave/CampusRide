@@ -90,7 +90,7 @@ export default function RequestSeatModal({ isOpen, onClose, ride, onRequestSucce
         <div className="bg-gradient-to-r from-[#00AFF5] to-blue-600 text-white p-6 flex items-center justify-between">
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-semibold mb-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> BlaBlaCar Booking
+              <ShieldCheck className="w-3.5 h-3.5" /> CampusRide Booking
             </div>
             <h2 className="text-xl font-bold">Book a Seat</h2>
             <p className="text-xs text-sky-100">

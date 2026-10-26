@@ -119,7 +119,7 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
               <Car className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">Offer a Ride (BlaBlaCar)</h2>
+              <h2 className="text-lg font-bold">Offer a Ride (CampusRide)</h2>
               <p className="text-xs text-sky-100">Share your empty seats & split fuel expenses</p>
             </div>
           </div>
