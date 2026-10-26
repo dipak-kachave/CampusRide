@@ -113,17 +113,17 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl w-full max-w-lg border border-slate-200 shadow-2xl overflow-hidden my-8">
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#00AFF5] to-blue-600 text-white p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur">
               <Car className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">Publish a Campus Ride</h2>
-              <p className="text-xs text-emerald-100">Share your empty seats & split fuel expenses</p>
+              <h2 className="text-lg font-bold">Offer a Ride (BlaBlaCar)</h2>
+              <p className="text-xs text-sky-100">Share your empty seats & split fuel expenses</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition">
+          <button onClick={onClose} className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -276,7 +276,7 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 transition disabled:opacity-50"
+            className="w-full py-3.5 px-4 rounded-full bg-[#00AFF5] hover:bg-[#0098d6] active:scale-98 text-white font-black text-sm shadow-md shadow-sky-500/25 transition disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Publishing Ride..." : `Publish Ride for ₹${formData.pricePerSeat} / seat`}
           </button>

@@ -9,14 +9,13 @@ export default function MobileBottomNav() {
 
   const links = [
     { to: "/", label: "Home", icon: Home },
-    { to: "/rides", label: "Rides (₹12/KM)", icon: Car },
-    // Rentals temporarily hidden
+    { to: "/rides", label: "Search", icon: Car },
     { to: "/bus-stand", label: "Buses", icon: Bus },
     { to: isAuthenticated ? "/dashboard" : "/login", label: isAuthenticated ? "Profile" : "Login", icon: User },
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 py-1.5 px-3">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 py-2 px-3 shadow-lg">
       <div className="flex justify-around items-center">
         {links.map((item) => {
           const Icon = item.icon;
@@ -26,7 +25,7 @@ export default function MobileBottomNav() {
               key={item.to}
               to={item.to}
               className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-[11px] font-medium transition ${
-                isActive ? "text-blue-600 font-semibold" : "text-slate-500 hover:text-slate-800"
+                isActive ? "text-[#00AFF5] font-bold" : "text-slate-500 hover:text-slate-800"
               }`}
             >
               <Icon className={`w-5 h-5 ${isActive ? "stroke-[2.5]" : "stroke-[1.75]"}`} />

@@ -1,86 +1,111 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import {
-  Car,
-  Plus,
-  MapPin,
-  Clock,
-  Users,
-  ArrowRight,
-  ShieldCheck,
   Search,
-  CheckCircle2,
+  ArrowLeftRight,
+  Clock,
+  Coins,
+  MapPin,
+  Hourglass,
+  Car,
+  ShieldCheck,
   Star,
-  AlertCircle,
+  Users,
   Heart,
-  SlidersHorizontal,
   Luggage,
+  Sparkles,
+  ChevronRight,
   X,
+  Filter,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { Link } from "react-router-dom";
-import PublishRideModal from "../components/PublishRideModal";
-import RequestSeatModal from "../components/RequestSeatModal";
-import VerifyIdCardModal from "../components/VerifyIdCardModal";
 import ShirpurMap from "../components/ShirpurMap";
+import VerifyIdCardModal from "../components/VerifyIdCardModal";
+import PublishRideModal from "../components/PublishRideModal";
 import { formatDepartureTime } from "../utils/dateFormatter";
 
 export default function Rides() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { isAuthenticated, user, refreshUser } = useAuth();
-  const [rides, setRides] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Filters state
-  const [locations, setLocations] = useState([]);
-  const [fromLocation, setFromLocation] = useState("All");
-  const [toLocation, setToLocation] = useState("All");
-  const [filterDate, setFilterDate] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [minRating, setMinRating] = useState("");
-  const [womenOnlyFilter, setWomenOnlyFilter] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Modals state
-  const [isPublishOpen, setIsPublishOpen] = useState(false);
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
-  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
-  const [selectedRide, setSelectedRide] = useState(null);
-  const [actionSuccessMsg, setActionSuccessMsg] = useState("");
 
   const isVerified = user?.isVerified || user?.verificationStatus === "verified";
+
+  // Location list
+  const [locations, setLocations] = useState([
+    "RCPIT Main Gate",
+    "Shirpur Bus Stand",
+    "Boys Hostel",
+    "Girls Hostel",
+    "Library Gate",
+    "Shirpur Market",
+  ]);
+
+  // Search Bar State (sync with URL params)
+  const [from, setFrom] = useState(searchParams.get("from") || "All");
+  const [to, setTo] = useState(searchParams.get("to") || "All");
+  const [date, setDate] = useState(
+    searchParams.get("date") || new Date().toISOString().split("T")[0]
+  );
+  const [returnDate, setReturnDate] = useState(searchParams.get("returnDate") || "");
+  const [passengers, setPassengers] = useState(
+    Number(searchParams.get("passengers")) || 1
+  );
+
+  // Filter & Sort State
+  const [sortBy, setSortBy] = useState("earliest"); // "earliest" | "lowest_price" | "shortest"
+  const [departureTimeSlots, setDepartureTimeSlots] = useState({
+    before06: false,
+    slot06to12: false,
+    slot12to18: false,
+    after18: false,
+  });
+  const [womenOnly, setWomenOnly] = useState(
+    searchParams.get("womenOnly") === "true"
+  );
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [luggageOnly, setLuggageOnly] = useState(false);
+
+  // Map state
+  const [showMapModal, setShowMapModal] = useState(false);
+
+  // Modals
+  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
+  const [isPublishOpen, setIsPublishOpen] = useState(false);
+
+  // Rides data
+  const [rides, setRides] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Fetch campus locations
   useEffect(() => {
     fetch("/api/locations")
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.locations) {
+        if (data.success && data.locations?.length) {
           setLocations(data.locations);
         }
       })
       .catch((err) => console.error("Error fetching locations:", err));
   }, []);
 
+  // Fetch rides from server
   const fetchRides = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (fromLocation && fromLocation !== "All") params.append("from", fromLocation);
-      if (toLocation && toLocation !== "All") params.append("to", toLocation);
-      if (filterDate) params.append("date", filterDate);
-      if (maxPrice) params.append("maxPrice", maxPrice);
-      if (minRating) params.append("minRating", minRating);
-      if (womenOnlyFilter) params.append("womenOnly", "true");
-      if (searchTerm) params.append("search", searchTerm);
+      if (from && from !== "All") params.append("from", from);
+      if (to && to !== "All") params.append("to", to);
+      if (date) params.append("date", date);
+      if (womenOnly) params.append("womenOnly", "true");
 
-      const url = `/api/rides${params.toString() ? `?${params.toString()}` : ""}`;
-      const res = await fetch(url);
+      const res = await fetch(`/api/rides?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         setRides(data.rides || []);
       }
     } catch (err) {
-      console.error("Failed to load rides:", err);
+      console.error("Error fetching rides:", err);
     } finally {
       setLoading(false);
     }
@@ -88,409 +113,661 @@ export default function Rides() {
 
   useEffect(() => {
     fetchRides();
-  }, [fromLocation, toLocation, filterDate, maxPrice, minRating, womenOnlyFilter, searchTerm]);
+  }, [from, to, date, womenOnly]);
 
-  const handleRideCreated = (newRide) => {
-    setRides((prev) => [newRide, ...prev]);
-    setActionSuccessMsg("🎉 Your ride was published! Fellow verified students can now request seats.");
-    setTimeout(() => setActionSuccessMsg(""), 6000);
-  };
+  // Handle Search Submission
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (from && from !== "All") params.append("from", from);
+    if (to && to !== "All") params.append("to", to);
+    if (date) params.append("date", date);
+    if (returnDate) params.append("returnDate", returnDate);
+    if (passengers > 1) params.append("passengers", passengers);
+    if (womenOnly) params.append("womenOnly", "true");
 
-  const handleRequestSuccess = () => {
-    setActionSuccessMsg("🎉 Seat requested! Driver will receive an in-app alert on their dashboard.");
-    setTimeout(() => setActionSuccessMsg(""), 6000);
+    setSearchParams(params);
     fetchRides();
   };
 
-  const handleOpenRequest = (ride) => {
-    if (!isAuthenticated) {
-      window.location.href = "/login";
-      return;
+  // Swap From and To
+  const handleSwap = () => {
+    if (from !== "All" && to !== "All") {
+      const temp = from;
+      setFrom(to);
+      setTo(temp);
     }
-    if (!isVerified) {
-      setIsVerifyOpen(true);
-      return;
-    }
-    setSelectedRide(ride);
-    setIsRequestOpen(true);
   };
 
-  const handleOpenPublish = () => {
-    if (!isAuthenticated) {
-      window.location.href = "/login";
-      return;
+  // Filter & Sort rides client-side
+  const filteredAndSortedRides = useMemo(() => {
+    let result = [...rides];
+
+    // Filter by departure time slots
+    const anySlotSelected = Object.values(departureTimeSlots).some(Boolean);
+    if (anySlotSelected) {
+      result = result.filter((ride) => {
+        const depDate = new Date(ride.departureTime);
+        const hours = depDate.getHours();
+        if (departureTimeSlots.before06 && hours < 6) return true;
+        if (departureTimeSlots.slot06to12 && hours >= 6 && hours < 12) return true;
+        if (departureTimeSlots.slot12to18 && hours >= 12 && hours < 18) return true;
+        if (departureTimeSlots.after18 && hours >= 18) return true;
+        return false;
+      });
     }
-    if (!isVerified) {
-      setIsVerifyOpen(true);
-      return;
+
+    // Filter by verified driver only
+    if (verifiedOnly) {
+      result = result.filter(
+        (r) => r.driver?.isVerified || r.driver?.verificationBadge
+      );
     }
-    setIsPublishOpen(true);
+
+    // Filter by luggage allowed
+    if (luggageOnly) {
+      result = result.filter((r) => r.luggageAllowed);
+    }
+
+    // Filter by passenger seat capacity
+    if (passengers > 1) {
+      result = result.filter((r) => (r.seatsAvailable || 0) >= passengers);
+    }
+
+    // Sort
+    if (sortBy === "earliest") {
+      result.sort(
+        (a, b) => new Date(a.departureTime) - new Date(b.departureTime)
+      );
+    } else if (sortBy === "lowest_price") {
+      result.sort((a, b) => a.pricePerSeat - b.pricePerSeat);
+    } else if (sortBy === "shortest") {
+      result.sort((a, b) => a.pricePerSeat - b.pricePerSeat);
+    }
+
+    return result;
+  }, [
+    rides,
+    departureTimeSlots,
+    verifiedOnly,
+    luggageOnly,
+    passengers,
+    sortBy,
+  ]);
+
+  const clearAllFilters = () => {
+    setSortBy("earliest");
+    setDepartureTimeSlots({
+      before06: false,
+      slot06to12: false,
+      slot12to18: false,
+      after18: false,
+    });
+    setWomenOnly(false);
+    setVerifiedOnly(false);
+    setLuggageOnly(false);
   };
 
-  const resetFilters = () => {
-    setFromLocation("All");
-    setToLocation("All");
-    setFilterDate("");
-    setMaxPrice("");
-    setMinRating("");
-    setWomenOnlyFilter(false);
-    setSearchTerm("");
+  // Time formatting helper
+  const getDepartureTimeFormatted = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  };
+
+  // Estimated arrival time (~20 mins for campus routes)
+  const getArrivalTimeFormatted = (dateStr) => {
+    const d = new Date(new Date(dateStr).getTime() + 20 * 60 * 1000);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
   };
 
   return (
-    <div className="pb-24 pt-6 max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 rounded-3xl p-6 sm:p-8 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl relative overflow-hidden">
-        <div className="space-y-2 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-semibold backdrop-blur">
-            <Car className="w-3.5 h-3.5 text-emerald-300" />
-            Verified RCPIT Peer Mobility • Fixed Campus Points • Zero Commission
-          </div>
-          <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">Campus Rides</h1>
-          <p className="text-emerald-100 text-xs sm:text-sm max-w-lg">
-            Share empty seats between RCPIT gates, hostels, and Shirpur bus stand. Safe co-travel with verified students.
-          </p>
-        </div>
-
-        <div className="relative z-10 shrink-0">
-          <button
-            onClick={handleOpenPublish}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white text-emerald-900 font-bold text-sm shadow-lg hover:bg-emerald-50 transition transform hover:-translate-y-0.5 cursor-pointer"
+    <div className="bg-[#f4f6f8] min-h-[calc(100vh-72px)] text-slate-800 pb-20">
+      {/* BlaBlaCar-Style Top Search Bar (Matching Screenshot 2) */}
+      <div className="bg-white border-b border-slate-200 shadow-sm sticky top-18 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="bg-white rounded-full border border-slate-300 shadow-sm p-1.5 flex flex-col md:flex-row items-stretch md:items-center divide-y md:divide-y-0 md:divide-x divide-slate-200 text-xs sm:text-sm"
           >
-            <Plus className="w-4 h-4 text-emerald-700" /> Publish a Ride
-          </button>
-        </div>
-      </div>
+            {/* From */}
+            <div className="flex-1 px-4 py-2 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">From</span>
+                <select
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm"
+                >
+                  <option value="All">All Pickup Points</option>
+                  {locations.map((loc) => (
+                    <option key={`bar-from-${loc}`} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-      {/* STEP 3 #2: Verification Gating Banner for Unverified Users */}
-      {isAuthenticated && !isVerified && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-300/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">
-                Student Verification Required ({user?.verificationStatus === "pending" ? "Pending Admin Approval" : user?.verificationStatus === "rejected" ? "Verification Rejected" : "Unverified"})
-              </h3>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {user?.verificationStatus === "pending"
-                  ? "Your College ID Card is currently being reviewed by college administration. Once approved, you can publish and join rides."
-                  : user?.verificationStatus === "rejected"
-                  ? `Your submission was rejected: "${user?.rejectionReason || "Please re-upload a clear ID card"}". Upload a new photo to verify.`
-                  : "To keep our campus safe and trust-first, you must upload your RCPIT Student/Staff ID Card before publishing or reserving seats."}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setIsVerifyOpen(true)}
-            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm transition whitespace-nowrap cursor-pointer"
-          >
-            {user?.verificationStatus === "pending" ? "Check / Re-upload ID" : "Verify College ID Card"}
-          </button>
-        </div>
-      )}
-
-      {actionSuccessMsg && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span className="font-semibold">{actionSuccessMsg}</span>
-          </div>
-          <button onClick={() => setActionSuccessMsg("")} className="text-xs font-bold underline">
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* Search & Filter Bar */}
-      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search pickup point, vehicle, note..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-            {/* Quick origin & destination selectors */}
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-              <span className="text-slate-400 text-[11px]">From:</span>
-              <select
-                value={fromLocation}
-                onChange={(e) => setFromLocation(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-emerald-600 outline-none"
+              {/* Swap Button */}
+              <button
+                type="button"
+                onClick={handleSwap}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-[#00AFF5] transition ml-2 cursor-pointer"
+                title="Swap origin and destination"
               >
-                <option value="All">All Origins</option>
-                {locations.map((loc) => (
-                  <option key={`from-${loc}`} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-              </select>
+                <ArrowLeftRight className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-              <span className="text-slate-400 text-[11px]">To:</span>
+            {/* To */}
+            <div className="flex-1 px-4 py-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">To</span>
               <select
-                value={toLocation}
-                onChange={(e) => setToLocation(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-emerald-600 outline-none"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm"
               >
                 <option value="All">All Destinations</option>
                 {locations.map((loc) => (
-                  <option key={`to-${loc}`} value={loc}>
+                  <option key={`bar-to-${loc}`} value={loc}>
                     {loc}
                   </option>
                 ))}
               </select>
             </div>
 
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                showFilters || maxPrice || minRating || filterDate || womenOnlyFilter
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>Filters</span>
-              {(maxPrice || minRating || filterDate || womenOnlyFilter) && (
-                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Extended Filters Drawer */}
-        {showFilters && (
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Departure Date</label>
+            {/* Departure */}
+            <div className="px-4 py-2 min-w-[140px]">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Departure</span>
               <input
                 type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-600"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm"
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Max Price: {maxPrice ? `₹${maxPrice}` : "Any"}
-              </label>
-              <input
-                type="number"
-                placeholder="e.g. 30"
-                min="10"
-                max="60"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-600"
-              />
+            {/* Return (with Clear 'X') */}
+            <div className="px-4 py-2 min-w-[130px] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Return</span>
+                <input
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm text-slate-600"
+                />
+              </div>
+              {returnDate && (
+                <button
+                  type="button"
+                  onClick={() => setReturnDate("")}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Min Driver Rating</label>
+            {/* Passengers */}
+            <div className="px-4 py-2 min-w-[120px]">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Passengers</span>
               <select
-                value={minRating}
-                onChange={(e) => setMinRating(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-emerald-600"
+                value={passengers}
+                onChange={(e) => setPassengers(Number(e.target.value))}
+                className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm"
               >
-                <option value="">Any Rating</option>
-                <option value="4.5">4.5+ Stars ⭐</option>
-                <option value="4.0">4.0+ Stars ⭐</option>
-                <option value="3.5">3.5+ Stars ⭐</option>
+                <option value={1}>1 passenger</option>
+                <option value={2}>2 passengers</option>
+                <option value={3}>3 passengers</option>
+                <option value={4}>4 passengers</option>
               </select>
             </div>
 
-            <div className="flex flex-col justify-end">
-              <label className="flex items-center gap-2 p-2 rounded-xl bg-pink-50 border border-pink-200 text-pink-800 font-bold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={womenOnlyFilter}
-                  onChange={(e) => setWomenOnlyFilter(e.target.checked)}
-                  className="rounded text-pink-600 focus:ring-pink-500 w-4 h-4"
-                />
-                <span className="flex items-center gap-1 text-[11px]">
-                  <Heart className="w-3.5 h-3.5 fill-pink-500 text-pink-500" /> Women-Only Rides
-                </span>
-              </label>
+            {/* Search Button */}
+            <div className="p-1.5 flex items-center justify-center">
+              <button
+                type="submit"
+                className="w-full md:w-auto px-6 py-2.5 rounded-full bg-[#00AFF5] hover:bg-[#0098d6] text-white font-bold text-sm shadow-md shadow-sky-500/25 transition cursor-pointer"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Main Content Layout (Sidebar + Results) */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-6">
+        {/* Verification Alert Banner if unverified */}
+        {isAuthenticated && !isVerified && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-slate-900">
+                  Verify your RCPIT Student/Staff ID to book or publish
+                </p>
+                <p className="text-xs text-slate-600">
+                  {user?.verificationStatus === "pending"
+                    ? "Your college ID is being reviewed by administration."
+                    : "Upload your ID card photo to unlock instant ride booking & seat sharing."}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsVerifyOpen(true)}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              {user?.verificationStatus === "pending" ? "Check Status" : "Verify College ID"}
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column: Map & Filters Sidebar (Matching Screenshot 2) */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* 1. Show on Map Preview Card */}
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm relative group">
+              <div className="h-36 bg-gradient-to-tr from-sky-100 via-blue-50 to-indigo-100 flex items-center justify-center relative overflow-hidden">
+                {/* Visual map roads grid */}
+                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#00AFF5_2px,transparent_2px)] [background-size:16px_16px]"></div>
+                <div className="absolute inset-x-8 top-1/2 h-1 bg-sky-300/60 rounded"></div>
+                <div className="absolute top-6 bottom-6 left-1/3 w-1 bg-sky-300/60 rounded"></div>
+
+                {/* Floating "Show on map" Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowMapModal(true)}
+                  className="relative z-10 px-5 py-2.5 rounded-full bg-[#00AFF5] hover:bg-[#0098d6] active:scale-95 text-white font-bold text-xs shadow-lg shadow-sky-500/30 flex items-center gap-2 cursor-pointer transition"
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span>Show on map</span>
+                </button>
+              </div>
             </div>
 
-            {(maxPrice || minRating || filterDate || womenOnlyFilter || fromLocation !== "All" || toLocation !== "All") && (
-              <div className="sm:col-span-4 flex justify-end">
+            {/* 2. "Sort by" Filter Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-base text-slate-900">Sort by</h3>
                 <button
-                  onClick={resetFilters}
-                  className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1"
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="text-xs font-semibold text-[#00AFF5] hover:underline cursor-pointer"
                 >
-                  <X className="w-3.5 h-3.5" /> Reset all filters
+                  Clear all
                 </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="sortBy"
+                      checked={sortBy === "earliest"}
+                      onChange={() => setSortBy("earliest")}
+                      className="w-4 h-4 text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="text-sm font-semibold text-slate-800">Earliest departure</span>
+                  </div>
+                  <Clock className="w-4 h-4 text-slate-400" />
+                </label>
+
+                <label className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="sortBy"
+                      checked={sortBy === "lowest_price"}
+                      onChange={() => setSortBy("lowest_price")}
+                      className="w-4 h-4 text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="text-sm font-semibold text-slate-800">Lowest price</span>
+                  </div>
+                  <Coins className="w-4 h-4 text-slate-400" />
+                </label>
+
+                <label className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="sortBy"
+                      checked={sortBy === "shortest"}
+                      onChange={() => setSortBy("shortest")}
+                      className="w-4 h-4 text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="text-sm font-semibold text-slate-800">Shortest ride</span>
+                  </div>
+                  <Hourglass className="w-4 h-4 text-slate-400" />
+                </label>
+              </div>
+            </div>
+
+            {/* 3. "Departure time" Filter Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <h3 className="font-extrabold text-base text-slate-900 border-b border-slate-100 pb-3">
+                Departure time
+              </h3>
+
+              <div className="space-y-3 text-sm">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={departureTimeSlots.before06}
+                      onChange={(e) =>
+                        setDepartureTimeSlots((prev) => ({
+                          ...prev,
+                          before06: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="font-medium text-slate-700">Before 06:00</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={departureTimeSlots.slot06to12}
+                      onChange={(e) =>
+                        setDepartureTimeSlots((prev) => ({
+                          ...prev,
+                          slot06to12: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="font-medium text-slate-700">06:00 - 12:00</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={departureTimeSlots.slot12to18}
+                      onChange={(e) =>
+                        setDepartureTimeSlots((prev) => ({
+                          ...prev,
+                          slot12to18: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="font-medium text-slate-700">12:01 - 18:00</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={departureTimeSlots.after18}
+                      onChange={(e) =>
+                        setDepartureTimeSlots((prev) => ({
+                          ...prev,
+                          after18: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="font-medium text-slate-700">After 18:00</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* 4. Trust & Amenities Filter Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <h3 className="font-extrabold text-base text-slate-900 border-b border-slate-100 pb-3">
+                Trust & Safety
+              </h3>
+
+              <div className="space-y-3 text-sm">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={womenOnly}
+                      onChange={(e) => setWomenOnly(e.target.checked)}
+                      className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500"
+                    />
+                    <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                      <Heart className="w-3.5 h-3.5 text-pink-500 fill-pink-500" /> Women-only
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={verifiedOnly}
+                      onChange={(e) => setVerifiedOnly(e.target.checked)}
+                      className="w-4 h-4 rounded text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#00AFF5]" /> Verified drivers
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={luggageOnly}
+                      onChange={(e) => setLuggageOnly(e.target.checked)}
+                      className="w-4 h-4 rounded text-[#00AFF5] focus:ring-[#00AFF5]"
+                    />
+                    <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                      <Luggage className="w-3.5 h-3.5 text-slate-500" /> Backpack allowed
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Search Results List (Matching Screenshot 2) */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Header: Outbound • Date & Count */}
+            <div className="flex items-center justify-between px-1">
+              <h2 className="font-extrabold text-base sm:text-lg text-slate-900">
+                Outbound • {new Date(date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}{" "}
+                <span className="text-slate-500 font-semibold text-sm">
+                  {from !== "All" ? from : "Shirpur"} → {to !== "All" ? to : "Campus"}
+                </span>
+              </h2>
+              <span className="text-xs sm:text-sm font-semibold text-slate-500">
+                {filteredAndSortedRides.length} ride{filteredAndSortedRides.length !== 1 ? "s" : ""} available
+              </span>
+            </div>
+
+            {/* Rides List */}
+            {loading ? (
+              <div className="bg-white rounded-3xl p-16 text-center border border-slate-200">
+                <div className="w-10 h-10 border-3 border-[#00AFF5] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-sm font-semibold text-slate-600">Finding available rides...</p>
+              </div>
+            ) : filteredAndSortedRides.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-slate-300 space-y-4">
+                <div className="w-16 h-16 rounded-full bg-sky-50 text-[#00AFF5] flex items-center justify-center mx-auto">
+                  <Car className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-slate-900">No rides match your search</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Try adjusting your filters or date, or be the first to publish a ride on this route!
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsPublishOpen(true)}
+                  className="px-6 py-2.5 rounded-full bg-[#00AFF5] hover:bg-[#0098d6] text-white font-bold text-xs shadow-md shadow-sky-500/25 transition cursor-pointer"
+                >
+                  Offer a Ride
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredAndSortedRides.map((ride) => (
+                  <Link
+                    key={ride._id}
+                    to={`/rides/${ride._id}`}
+                    className="block bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 hover:border-[#00AFF5] hover:shadow-lg transition duration-200 cursor-pointer group"
+                  >
+                    {/* Top Row: Route Timeline & Bold Price (Matching BlaBlaCar card in Photo 2) */}
+                    <div className="flex items-start justify-between gap-4">
+                      {/* Left: Departure and Arrival Timeline */}
+                      <div className="flex items-center gap-3 sm:gap-6 flex-1">
+                        {/* Departure */}
+                        <div className="space-y-0.5 min-w-[70px]">
+                          <span className="text-base sm:text-lg font-black text-slate-900 block">
+                            {getDepartureTimeFormatted(ride.departureTime)}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-500 block truncate max-w-[120px]">
+                            {ride.from}
+                          </span>
+                        </div>
+
+                        {/* Visual connecting duration line with circles */}
+                        <div className="flex-1 max-w-[140px] sm:max-w-[180px] flex items-center justify-center relative">
+                          <div className="w-2 h-2 rounded-full border-2 border-slate-400 bg-white z-10 shrink-0"></div>
+                          <div className="h-[2px] bg-slate-300 flex-1 relative">
+                            <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 whitespace-nowrap">
+                              ~20m
+                            </span>
+                          </div>
+                          <div className="w-2 h-2 rounded-full border-2 border-slate-400 bg-white z-10 shrink-0"></div>
+                        </div>
+
+                        {/* Arrival */}
+                        <div className="space-y-0.5 min-w-[70px]">
+                          <span className="text-base sm:text-lg font-black text-slate-900 block">
+                            {getArrivalTimeFormatted(ride.departureTime)}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-500 block truncate max-w-[120px]">
+                            {ride.to}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right: Big Bold Price */}
+                      <div className="text-right shrink-0">
+                        <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                          ₹{ride.pricePerSeat.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Driver Profile & Badges (Matching Photo 2) */}
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      {/* Driver Avatar & Rating */}
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div className="relative">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#00AFF5] to-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                            {ride.driver?.name ? ride.driver.name[0].toUpperCase() : "D"}
+                          </div>
+                          {(ride.driver?.isVerified || ride.driver?.verificationBadge) && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00AFF5] text-white flex items-center justify-center border-2 border-white">
+                              <ShieldCheck className="w-2.5 h-2.5" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-sm text-slate-900 group-hover:text-[#00AFF5] transition">
+                              {ride.driver?.name}
+                            </span>
+                            <span className="flex items-center gap-0.5 text-xs font-bold text-slate-700">
+                              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                              {(ride.driver?.ratingAvg || ride.driver?.rating || 5.0).toFixed(1)}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            {ride.driver?.department || "RCPIT Student"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Feature Badges */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {ride.womenOnly && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-pink-50 text-pink-700 text-[11px] font-bold border border-pink-100">
+                            <Heart className="w-3 h-3 text-pink-500 fill-pink-500" /> Women-only
+                          </span>
+                        )}
+
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-medium">
+                          <Users className="w-3 h-3 text-slate-500" /> Max. {ride.seatsAvailable} seat{ride.seatsAvailable > 1 ? "s" : ""}
+                        </span>
+
+                        {ride.luggageAllowed && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-medium">
+                            <Luggage className="w-3 h-3 text-slate-500" /> Backpack
+                          </span>
+                        )}
+
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-[#00AFF5] group-hover:translate-x-1 transition ml-1">
+                          Details <ChevronRight className="w-4 h-4" />
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Interactive Shirpur Route Map */}
-      <div className="space-y-3">
-        <ShirpurMap onSelectRoute={() => handleOpenPublish()} />
-      </div>
-
-      {/* Rides Grid */}
-      {loading ? (
-        <div className="text-center py-16">
-          <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-xs text-slate-500">Finding available campus rides...</p>
-        </div>
-      ) : rides.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-slate-300 space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-            <Car className="w-7 h-7" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-base font-bold text-slate-900">No active rides match your filter</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Traveling between RCPIT gates and Shirpur? Publish a ride and split fuel costs with fellow students!
-            </p>
-          </div>
-          <button
-            onClick={handleOpenPublish}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow hover:bg-emerald-700 transition cursor-pointer"
-          >
-            + Publish a Ride
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {rides.map((ride) => (
-            <div
-              key={ride._id}
-              className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4"
-            >
-              <div className="space-y-3">
-                {/* Driver Info & Badges */}
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        to={`/profile/${ride.driver?._id}`}
-                        className="font-bold text-slate-900 text-sm hover:text-emerald-700 hover:underline transition"
-                      >
-                        {ride.driver?.name}
-                      </Link>
-                      {ride.driver?.isVerified && (
-                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                          <ShieldCheck className="w-3 h-3 text-emerald-600" /> Verified
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
-                      <span>{ride.driver?.department}</span>
-                      <span className="flex items-center gap-1 text-amber-600 font-bold">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        {(ride.driver?.ratingAvg || ride.driver?.rating || 5.0).toFixed(1)}
-                        <span className="text-slate-400 font-normal">
-                          ({ride.driver?.ridesCompleted || 0} rides)
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-lg font-black text-emerald-600 block">₹{ride.pricePerSeat}</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold">per seat</span>
-                  </div>
-                </div>
-
-                {/* Badges: Women-Only / Luggage */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {ride.womenOnly && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-50 text-pink-700 text-[10px] font-extrabold border border-pink-200">
-                      <Heart className="w-3 h-3 fill-pink-500 text-pink-500" /> Women-Only Ride
-                    </span>
-                  )}
-                  {ride.luggageAllowed && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium">
-                      <Luggage className="w-3 h-3" /> Backpack ok
-                    </span>
-                  )}
-                </div>
-
-                {/* Route Box */}
-                <div className="bg-slate-50 rounded-2xl p-3.5 space-y-2 border border-slate-100 text-xs">
-                  <div className="flex items-center gap-2 text-slate-800 font-bold">
-                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                    <span>{ride.from}</span>
-                    <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="text-emerald-700">{ride.to}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-500 pt-1.5 border-t border-slate-200/50 text-[11px]">
-                    <span className="flex items-center gap-1 font-semibold text-slate-700">
-                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                      {formatDepartureTime(ride.departureTime)}
-                    </span>
-                    <span className="flex items-center gap-1 font-extrabold text-emerald-700">
-                      <Users className="w-3.5 h-3.5" /> {ride.seatsAvailable} open seat(s)
-                    </span>
-                  </div>
-                </div>
-
-                {ride.notes && (
-                  <p className="text-[11px] text-slate-500 italic bg-amber-50/50 p-2 rounded-xl border border-amber-100">
-                    "{ride.notes}"
-                  </p>
-                )}
+      {/* Map Modal */}
+      {showMapModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-4 px-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-[#00AFF5]" />
+                <h3 className="font-bold text-slate-900 text-base">Shirpur Campus Route Map</h3>
               </div>
-
-              {/* Action Button */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <span className="text-[11px] text-slate-500 font-medium truncate max-w-[170px]">
-                  🚗 {ride.vehicleInfo}
-                </span>
-
-                {user && user.id === (ride.driver?._id || ride.driver) ? (
-                  <span className="text-xs font-semibold text-slate-400 px-3 py-1 bg-slate-100 rounded-lg">
-                    Your Published Ride
-                  </span>
-                ) : ride.seatsAvailable > 0 ? (
-                  <button
-                    onClick={() => handleOpenRequest(ride)}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Request Seat <ArrowRight className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <span className="text-xs font-bold text-rose-600 px-3 py-1 bg-rose-50 rounded-lg">
-                    Ride Full
-                  </span>
-                )}
-              </div>
+              <button
+                onClick={() => setShowMapModal(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          ))}
+            <div className="p-4 overflow-y-auto">
+              <ShirpurMap
+                onSelectRoute={() => {
+                  setShowMapModal(false);
+                  setIsPublishOpen(true);
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Modals */}
+      {/* Publish Modal */}
       <PublishRideModal
         isOpen={isPublishOpen}
         onClose={() => setIsPublishOpen(false)}
-        onRideCreated={handleRideCreated}
+        onRideCreated={(newRide) => {
+          setIsPublishOpen(false);
+          setRides((prev) => [newRide, ...prev]);
+        }}
       />
 
-      <RequestSeatModal
-        isOpen={isRequestOpen}
-        onClose={() => setIsRequestOpen(false)}
-        ride={selectedRide}
-        onRequestSuccess={handleRequestSuccess}
-      />
-
+      {/* Verify ID Modal */}
       <VerifyIdCardModal
         isOpen={isVerifyOpen}
         onClose={() => setIsVerifyOpen(false)}
