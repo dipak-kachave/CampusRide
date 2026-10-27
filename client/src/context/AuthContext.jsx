@@ -38,12 +38,24 @@ export const AuthProvider = ({ children }) => {
   }, [token]);
 
   const login = async (email, password) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
+    let res;
+    try {
+      res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch (err) {
+      throw new Error("Unable to reach backend server. Please verify the backend is running on port 5000.");
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server returned error (${res.status}). Please try again.`);
+    }
+
     if (!res.ok || !data.success) {
       throw new Error(data.message || "Failed to log in");
     }
@@ -54,12 +66,24 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (formData) => {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    const data = await res.json();
+    let res;
+    try {
+      res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+    } catch (err) {
+      throw new Error("Unable to reach backend server. Please verify the backend is running on port 5000.");
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server returned error (${res.status}). Please try again.`);
+    }
+
     if (!res.ok || !data.success) {
       throw new Error(data.message || "Failed to register");
     }
