@@ -40,15 +40,13 @@ export default function Register() {
     }
   };
 
-  const isRcpitEmail = formData.email.trim().toLowerCase().endsWith("@rcpit.ac.in");
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     const cleanEmail = formData.email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      setError("Please enter a valid email address.");
+      setError("Please enter a valid personal Gmail address.");
       return;
     }
 
@@ -57,9 +55,9 @@ export default function Register() {
       return;
     }
 
-    // If personal email, encourage PRN or ID card proof
-    if (!cleanEmail.endsWith("@rcpit.ac.in") && (!formData.prn || formData.prn.trim().length < 4) && !idCardData) {
-      setError("Since you are using a personal email (like Gmail), please scan your College ID Card or enter your PRN / Roll Number as proof of being an RCPIT member.");
+    // Require College ID Card or PRN proof
+    if ((!formData.prn || formData.prn.trim().length < 4) && !idCardData) {
+      setError("Please scan your College ID Card or enter your PRN / Roll Number to verify your RCPIT identity.");
       return;
     }
 
@@ -88,7 +86,7 @@ export default function Register() {
             RCPIT Member Registration
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Create Account</h1>
-          <p className="text-xs text-slate-500">Register with your college email OR personal email with ID card / PRN proof</p>
+          <p className="text-xs text-slate-500">Sign up with your personal Gmail & College ID / PRN proof</p>
         </div>
 
         {error && (
@@ -139,7 +137,7 @@ export default function Register() {
 
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">
-              Email ID <span className="text-slate-400 font-normal">(Personal Gmail or @rcpit.ac.in)</span>
+              Personal Email (Gmail)
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -149,21 +147,15 @@ export default function Register() {
                 type="email"
                 name="email"
                 required
-                placeholder="yourname@gmail.com or @rcpit.ac.in"
+                placeholder="yourname@gmail.com"
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
               />
             </div>
-            {isRcpitEmail ? (
-              <p className="text-[11px] text-emerald-600 flex items-center gap-1 mt-1 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Official RCPIT Email detected — Auto-verified!
-              </p>
-            ) : (
-              <p className="text-[11px] text-slate-400 mt-1">
-                Personal emails allowed! Upload/scan your College ID Card below to auto-verify your profile.
-              </p>
-            )}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Personal Gmail allowed. Scan or upload your College ID Card below to verify your student profile.
+            </p>
           </div>
 
           {/* ID Card Camera / Upload Scanner */}

@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ShieldCheck, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
@@ -32,8 +32,8 @@ export default function Login() {
   };
 
   const fillDemo = () => {
-    setEmail("student@rcpit.ac.in");
-    setPassword("campus2026");
+    setEmail("dipakka974@gmail.com");
+    setPassword("Dipak@2007");
   };
 
   return (
