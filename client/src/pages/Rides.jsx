@@ -42,8 +42,8 @@ export default function Rides() {
   ]);
 
   // Search Bar State (sync with URL params)
-  const [from, setFrom] = useState(searchParams.get("from") || "All");
-  const [to, setTo] = useState(searchParams.get("to") || "All");
+  const [from, setFrom] = useState(searchParams.get("from") || "");
+  const [to, setTo] = useState(searchParams.get("to") || "");
   const [date, setDate] = useState(
     searchParams.get("date") || new Date().toISOString().split("T")[0]
   );
@@ -94,8 +94,8 @@ export default function Rides() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (from && from !== "All") params.append("from", from);
-      if (to && to !== "All") params.append("to", to);
+      if (from && from !== "All" && from.trim()) params.append("from", from.trim());
+      if (to && to !== "All" && to.trim()) params.append("to", to.trim());
       if (date) params.append("date", date);
       if (womenOnly) params.append("womenOnly", "true");
 
@@ -119,8 +119,8 @@ export default function Rides() {
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     const params = new URLSearchParams();
-    if (from && from !== "All") params.append("from", from);
-    if (to && to !== "All") params.append("to", to);
+    if (from && from !== "All" && from.trim()) params.append("from", from.trim());
+    if (to && to !== "All" && to.trim()) params.append("to", to.trim());
     if (date) params.append("date", date);
     if (returnDate) params.append("returnDate", returnDate);
     if (passengers > 1) params.append("passengers", passengers);
@@ -132,11 +132,9 @@ export default function Rides() {
 
   // Swap From and To
   const handleSwap = () => {
-    if (from !== "All" && to !== "All") {
-      const temp = from;
-      setFrom(to);
-      setTo(temp);
-    }
+    const temp = from;
+    setFrom(to);
+    setTo(temp);
   };
 
   // Filter & Sort rides client-side
@@ -231,27 +229,28 @@ export default function Rides() {
           >
             {/* From */}
             <div className="flex-1 px-4 py-2 flex items-center justify-between">
-              <div>
+              <div className="flex-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">From</span>
-                <select
-                  value={from}
+                <input
+                  type="text"
+                  list="bar-from-suggestions"
+                  value={from === "All" ? "" : from}
                   onChange={(e) => setFrom(e.target.value)}
-                  className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm"
-                >
-                  <option value="All">All Pickup Points</option>
+                  placeholder="Search pickup point or place..."
+                  className="font-bold text-slate-900 bg-transparent outline-none w-full text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal"
+                />
+                <datalist id="bar-from-suggestions">
                   {locations.map((loc) => (
-                    <option key={`bar-from-${loc}`} value={loc}>
-                      {loc}
-                    </option>
+                    <option key={`bar-from-${loc}`} value={loc} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               {/* Swap Button */}
               <button
                 type="button"
                 onClick={handleSwap}
-                className="p-1.5 rounded-full hover:bg-slate-100 text-[#00AFF5] transition ml-2 cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-slate-100 text-[#00AFF5] transition ml-2 cursor-pointer shrink-0"
                 title="Swap origin and destination"
               >
                 <ArrowLeftRight className="w-4 h-4" />
@@ -261,18 +260,19 @@ export default function Rides() {
             {/* To */}
             <div className="flex-1 px-4 py-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 block">To</span>
-              <select
-                value={to}
+              <input
+                type="text"
+                list="bar-to-suggestions"
+                value={to === "All" ? "" : to}
                 onChange={(e) => setTo(e.target.value)}
-                className="font-bold text-slate-900 bg-transparent outline-none cursor-pointer w-full text-xs sm:text-sm"
-              >
-                <option value="All">All Destinations</option>
+                placeholder="Search destination or place..."
+                className="font-bold text-slate-900 bg-transparent outline-none w-full text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal"
+              />
+              <datalist id="bar-to-suggestions">
                 {locations.map((loc) => (
-                  <option key={`bar-to-${loc}`} value={loc}>
-                    {loc}
-                  </option>
+                  <option key={`bar-to-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             {/* Departure */}
@@ -582,7 +582,7 @@ export default function Rides() {
               <h2 className="font-extrabold text-base sm:text-lg text-slate-900">
                 Outbound • {new Date(date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}{" "}
                 <span className="text-slate-500 font-semibold text-sm">
-                  {from !== "All" ? from : "Shirpur"} → {to !== "All" ? to : "Campus"}
+                  {from && from !== "All" ? from : "Any Pickup"} → {to && to !== "All" ? to : "Any Destination"}
                 </span>
               </h2>
               <span className="text-xs sm:text-sm font-semibold text-slate-500">

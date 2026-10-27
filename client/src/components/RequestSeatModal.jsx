@@ -173,26 +173,24 @@ export default function RequestSeatModal({ isOpen, onClose, ride, onRequestSucce
             <p className="text-[11px] text-slate-500">Vehicle: {ride.vehicleInfo}</p>
           </div>
 
-          {/* Pickup point dropdown */}
+          {/* Pickup point searchable input */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Select Your Campus Pickup Point
+              Your Specific Pickup Point
             </label>
-            <select
+            <input
+              type="text"
+              list="request-pickup-suggestions"
               value={pickupPoint}
               onChange={(e) => setPickupPoint(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-            >
-              {locations.length > 0 ? (
-                locations.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))
-              ) : (
-                <option value={ride.from}>{ride.from}</option>
-              )}
-            </select>
+              placeholder="e.g. Near Library Gate, Hostel 2, or Main Gate"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#00AFF5] bg-white placeholder:text-slate-400"
+            />
+            <datalist id="request-pickup-suggestions">
+              {locations.map((loc) => (
+                <option key={`req-loc-${loc}`} value={loc} />
+              ))}
+            </datalist>
           </div>
 
           <div>

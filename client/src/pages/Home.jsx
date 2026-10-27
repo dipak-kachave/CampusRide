@@ -110,17 +110,19 @@ export default function Home() {
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 From
               </label>
-              <select
+              <input
+                type="text"
+                list="home-from-suggestions"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                className="w-full font-bold text-slate-900 bg-transparent text-sm sm:text-base outline-none cursor-pointer mt-0.5"
-              >
+                placeholder="Search pickup point or place..."
+                className="w-full font-bold text-slate-900 bg-transparent text-sm sm:text-base outline-none mt-0.5 placeholder:text-slate-400 placeholder:font-normal"
+              />
+              <datalist id="home-from-suggestions">
                 {locations.map((loc) => (
-                  <option key={`from-${loc}`} value={loc}>
-                    {loc}
-                  </option>
+                  <option key={`from-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             {/* To */}
@@ -128,17 +130,19 @@ export default function Home() {
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 To
               </label>
-              <select
+              <input
+                type="text"
+                list="home-to-suggestions"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                className="w-full font-bold text-slate-900 bg-transparent text-sm sm:text-base outline-none cursor-pointer mt-0.5"
-              >
+                placeholder="Search destination or place..."
+                className="w-full font-bold text-slate-900 bg-transparent text-sm sm:text-base outline-none mt-0.5 placeholder:text-slate-400 placeholder:font-normal"
+              />
+              <datalist id="home-to-suggestions">
                 {locations.map((loc) => (
-                  <option key={`to-${loc}`} value={loc}>
-                    {loc}
-                  </option>
+                  <option key={`to-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             {/* Departure */}

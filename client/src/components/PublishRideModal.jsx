@@ -136,40 +136,44 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
             </div>
           )}
 
-          {/* Campus Points Dropdowns */}
+          {/* Pickup and Drop Point Inputs with Suggestions */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Pickup Point (Origin)</label>
-              <select
+              <input
+                type="text"
                 name="from"
+                list="publish-from-list"
                 required
+                placeholder="Type or select pickup point..."
                 value={formData.from}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-              >
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#00AFF5] bg-white placeholder:text-slate-400"
+              />
+              <datalist id="publish-from-list">
                 {locations.map((loc) => (
-                  <option key={`from-${loc}`} value={loc}>
-                    {loc}
-                  </option>
+                  <option key={`from-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Drop Point (Destination)</label>
-              <select
+              <input
+                type="text"
                 name="to"
+                list="publish-to-list"
                 required
+                placeholder="Type or select drop location..."
                 value={formData.to}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-              >
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#00AFF5] bg-white placeholder:text-slate-400"
+              />
+              <datalist id="publish-to-list">
                 {locations.map((loc) => (
-                  <option key={`to-${loc}`} value={loc}>
-                    {loc}
-                  </option>
+                  <option key={`to-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
 

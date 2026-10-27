@@ -64,11 +64,11 @@ const getAllRides = async (req, res) => {
       departureTime: { $gt: now },
     };
 
-    if (from && from !== "All") {
-      query.from = from;
+    if (from && from !== "All" && from.trim() !== "") {
+      query.from = { $regex: from.trim(), $options: "i" };
     }
-    if (to && to !== "All") {
-      query.to = to;
+    if (to && to !== "All" && to.trim() !== "") {
+      query.to = { $regex: to.trim(), $options: "i" };
     }
     if (maxPrice) {
       query.pricePerSeat = { $lte: Number(maxPrice) };
@@ -187,22 +187,17 @@ const createRide = async (req, res) => {
       });
     }
 
-    // STEP 1: Fixed campus locations validation
-    if (!campusConfig.pickupPoints.includes(from)) {
+    const cleanFrom = from.trim();
+    const cleanTo = to.trim();
+
+    if (cleanFrom.length < 2 || cleanTo.length < 2) {
       return res.status(400).json({
         success: false,
-        message: `Invalid origin. Must be one of: ${campusConfig.pickupPoints.join(", ")}`,
+        message: "Origin and destination pickup points must be at least 2 characters.",
       });
     }
 
-    if (!campusConfig.pickupPoints.includes(to)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid destination. Must be one of: ${campusConfig.pickupPoints.join(", ")}`,
-      });
-    }
-
-    if (from === to) {
+    if (cleanFrom.toLowerCase() === cleanTo.toLowerCase()) {
       return res.status(400).json({
         success: false,
         message: "Origin and destination pickup points cannot be the same.",
@@ -252,8 +247,8 @@ const createRide = async (req, res) => {
 
     const ride = await Ride.create({
       driver: user._id,
-      from,
-      to,
+      from: cleanFrom,
+      to: cleanTo,
       departureTime: depDate,
       seatsTotal: totalSeats,
       seatsAvailable: totalSeats,

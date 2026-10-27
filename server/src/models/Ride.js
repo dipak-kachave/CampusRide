@@ -20,7 +20,7 @@ const passengerSchema = new mongoose.Schema({
   },
   pickupPoint: {
     type: String,
-    enum: campusConfig.pickupPoints,
+    trim: true,
     default: "RCPIT Main Gate",
   },
   createdAt: {
@@ -39,13 +39,11 @@ const rideSchema = new mongoose.Schema(
     from: {
       type: String,
       required: [true, "Origin pickup point is required"],
-      enum: campusConfig.pickupPoints,
       trim: true,
     },
     to: {
       type: String,
       required: [true, "Destination pickup point is required"],
-      enum: campusConfig.pickupPoints,
       trim: true,
     },
     departureTime: {
