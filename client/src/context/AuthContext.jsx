@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     try {
       data = await res.json();
     } catch {
-      throw new Error(`Server returned error (${res.status}). Please try again.`);
+      throw new Error(`Backend server error (${res.status}). Please ensure backend is running on port 5000.`);
     }
 
     if (!res.ok || !data.success) {
@@ -74,14 +74,14 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(formData),
       });
     } catch (err) {
-      throw new Error("Unable to reach backend server. Please verify the backend is running on port 5000.");
+      throw new Error("Unable to connect to backend server. Please ensure backend is running on port 5000.");
     }
 
     let data;
     try {
       data = await res.json();
     } catch {
-      throw new Error(`Server returned error (${res.status}). Please try again.`);
+      throw new Error(`Backend server error (${res.status}). Please ensure backend is running on port 5000.`);
     }
 
     if (!res.ok || !data.success) {
