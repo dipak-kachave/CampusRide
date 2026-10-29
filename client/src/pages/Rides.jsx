@@ -73,6 +73,18 @@ export default function Rides() {
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
 
+  const handleOpenPublish = () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (!isVerified) {
+      setIsVerifyOpen(true);
+      return;
+    }
+    setIsPublishOpen(true);
+  };
+
   // Rides data
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -608,7 +620,7 @@ export default function Rides() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsPublishOpen(true)}
+                  onClick={handleOpenPublish}
                   className="px-6 py-2.5 rounded-full bg-[#00AFF5] hover:bg-[#0098d6] text-white font-bold text-xs shadow-md shadow-sky-500/25 transition cursor-pointer"
                 >
                   Offer a Ride
@@ -749,7 +761,7 @@ export default function Rides() {
               <ShirpurMap
                 onSelectRoute={() => {
                   setShowMapModal(false);
-                  setIsPublishOpen(true);
+                  handleOpenPublish();
                 }}
               />
             </div>

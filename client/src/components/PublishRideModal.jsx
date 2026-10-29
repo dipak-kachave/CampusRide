@@ -62,6 +62,11 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
     e.preventDefault();
     setError("");
 
+    if (!token || !user) {
+      setError("You must be logged in to offer a ride. Please log in first.");
+      return;
+    }
+
     if (formData.from === formData.to) {
       setError("Origin and destination cannot be the same pickup point.");
       return;
@@ -93,6 +98,10 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
         },
         body: JSON.stringify(formData),
       });
+
+      if (res.status === 401) {
+        throw new Error("Your session has expired or is invalid. Please log in again.");
+      }
 
       const data = await res.json();
       if (!res.ok || !data.success) {
