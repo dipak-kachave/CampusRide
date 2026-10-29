@@ -103,7 +103,13 @@ export default function PublishRideModal({ isOpen, onClose, onRideCreated }) {
         throw new Error("Your session has expired or is invalid. Please log in again.");
       }
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server connection error (${res.status}). Please check that the server is running.`);
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Failed to publish ride");
       }

@@ -70,7 +70,17 @@ export default function RequestSeatModal({ isOpen, onClose, ride, onRequestSucce
         }),
       });
 
-      const data = await res.json();
+      if (res.status === 401) {
+        throw new Error("Your session has expired. Please log in again to book a seat.");
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server connection error (${res.status}). Please try again.`);
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Failed to request seat");
       }
